@@ -41,7 +41,8 @@ body.lock{overflow:hidden}
 button,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--blue-text);outline-offset:2px}
-.wrap,#main{max-width:560px;margin:0 auto;padding:0 18px 180px}
+.wrap,#main{max-width:560px;margin:0 auto;padding:0 18px 96px}
+body.t-today #main{padding-bottom:180px}
 
 /* header */
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 0 10px}
@@ -138,6 +139,7 @@ input[type=date]{border:1px solid var(--line);border-radius:12px;background:var(
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 .two.stack{grid-template-columns:minmax(0,1fr);gap:0}
 .sheet{overflow-x:hidden}
+.wlinks{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 .seg{display:flex;background:var(--surface2);border-radius:12px;padding:3px;gap:3px}
 .seg button{flex:1;min-height:42px;border:0;border-radius:9px;background:none;color:var(--muted);font-weight:600}
 .seg button.on{background:var(--surface);color:var(--text)}
@@ -228,7 +230,7 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(db));storageOk=true;
 
 var now=new Date();
 var ui={tab:'today',date:todayStr(),cal:{y:now.getFullYear(),m:now.getMonth()},sheet:null,menu:false,range:90,fq:''};
-var toastTimer=null,lastUndo=null;
+var toastTimer=null,lastUndo=null,weightRowsCache=[];
 
 /* ---------- theme ---------- */
 function applyTheme(){
@@ -351,14 +353,14 @@ function viewWeight(){
  var w=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;});
  var last=w[w.length-1],first=w[0],sign=function(d){return (d>0?'+':d<0?'\u2212':'')+fmtP(Math.abs(d))+' kg';};
  var sub=last?fmtP(last.kg)+' kg on '+parseYmd(last.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+(w.length>1?', '+sign(last.kg-first.kg)+' since first entry':''):'No entries yet';
- var rows=w.slice().reverse().slice(0,ui.allW?w.length:7).map(function(e){
+ var rows=w.slice().reverse().map(function(e){
   var i=w.indexOf(e),prev=i>0?w[i-1]:null;
-  return '<li class="wrow"><span class="main"><span class="kg">'+fmtP(e.kg)+' kg</span><small class="delta">'+longDate(e.date)+(prev?', '+sign(e.kg-prev.kg):'')+'</small></span><button class="x" data-act="weight-del" data-date="'+e.date+'" aria-label="Delete entry from '+e.date+'">'+svg('trash',20)+'</button></li>';}).join('');
+  return '<li class="wrow"><span class="main"><span class="kg">'+fmtP(e.kg)+' kg</span><small class="delta">'+longDate(e.date)+(prev?', '+sign(e.kg-prev.kg):'')+'</small></span><button class="x" data-act="weight-del" data-date="'+e.date+'" aria-label="Delete entry from '+e.date+'">'+svg('trash',20)+'</button></li>';});weightRowsCache=rows;
  return '<header class="top"><div><h1>Weight</h1><p class="sub">'+sub+'</p></div></header>'+
  '<div class="wform"><label class="field" style="margin:0"><span>Date</span><input type="date" id="w-date" value="'+todayStr()+'"></label>'+
  '<label class="field" style="margin:0"><span>Weight</span><div class="inp"><input id="w-kg" type="text" inputmode="decimal" placeholder="78.4" autocomplete="off"><em>kg</em></div></label>'+
- '<button class="btn primary" data-act="weight-add" style="height:48px">Save</button></div><p class="err" id="w-err"></p>'+
- (w.length?'<button class="link" data-act="menu-graph">View weight graph</button><ul class="list">'+rows+'</ul>'+(w.length>7?'<button class="link" data-act="all-weights" style="margin-top:8px">'+(ui.allW?'Show fewer':'Show all '+w.length+' entries')+'</button>':'')+'':'<div class="empty"><b>No weight recorded</b><p>Enter your weight above to start tracking.</p></div>');
+ '<button class="btn primary" data-act="weight-add" style="height:48px">Save</button></div><p class="err" id="w-err" style="min-height:0;margin:2px 0 0"></p>'+
+ (w.length?'<ul class="list">'+rows.slice(0,3).join('')+'</ul><div class="wlinks"><button class="link" data-act="menu-graph">Weight graph</button>'+(w.length>3?'<button class="link" data-act="weights-all">All '+w.length+' entries</button>':'')+'</div>':'<div class="empty"><b>No weight recorded</b><p>Enter your weight above to start tracking.</p></div>');
 }
 
 /* ---------- sheets ---------- */
@@ -404,11 +406,14 @@ function sheetImport(){
  '<p class="err" id="err"></p><button class="btn primary wide" data-act="import-run">Import foods</button>'+
  '<p class="hint">Columns used: A product, B kcal per 100 g, C protein per 100 g, F package or unit size in grams.</p>';
 }
+function sheetWeights(){
+ return '<div class="sh"><h2>All weight entries</h2>'+closeBtn()+'</div><ul class="list">'+weightRowsCache.join('')+'</ul>';
+}
 function renderSheet(){
  var r=$('#sheet-root'),s=ui.sheet;
  document.body.classList.toggle('lock',!!s);
  if(!s){r.innerHTML='';return;}
- var inner=s.type==='entry'?(s.step==='pick'?sheetPick():sheetQty()):s.type==='food'?sheetFood():s.type==='import'?sheetImport():sheetSettings();
+ var inner=s.type==='entry'?(s.step==='pick'?sheetPick():sheetQty()):s.type==='food'?sheetFood():s.type==='import'?sheetImport():s.type==='weights'?sheetWeights():sheetSettings();
  r.innerHTML='<div class="scrim" data-act="close-sheet"></div><div class="sheet" role="dialog" aria-modal="true">'+inner+'</div>';
  if(s.type==='entry'&&s.step==='qty'){var q=$('#qty');if(q){q.focus();q.select();}updatePreview();}
  if(s.type==='food'&&!s.id&&!s.name){var n=$('#f-name');if(n)n.focus();}
@@ -436,6 +441,8 @@ function render(){
  if(hd){var tl=hd.querySelector('.tools');if(!tl){tl=document.createElement('div');tl.className='tools';hd.appendChild(tl);}tl.insertAdjacentHTML('beforeend','<button class="icon" data-act="menu" aria-label="More pages" aria-haspopup="menu">'+svg('menu')+'</button>');}
  document.querySelectorAll('.nav button').forEach(function(b){b.classList.toggle('on',b.dataset.tab===ui.tab);});
  $('#fab').hidden=ui.tab!=='today';
+ document.body.classList.toggle('t-today',ui.tab==='today');
+ if(ui.sheet&&ui.sheet.type==='weights')renderSheet();
  $('#notice').innerHTML=storageOk?'':'<div class="warn">This browser is blocking storage, so your data will not be kept after you close the page.</div>';
 }
 function toast(msg,undo){
@@ -469,7 +476,7 @@ var actions={
  'menu-graph':function(){ui.menu=false;renderMenu();ui.tab='graph';render();window.scrollTo(0,0);},
  'menu-settings':function(){ui.menu=false;renderMenu();actions['settings']();},
  'back':function(){ui.tab='weight';render();window.scrollTo(0,0);},
- 'all-weights':function(){ui.allW=!ui.allW;render();},
+ 'weights-all':function(){ui.sheet={type:'weights'};renderSheet();},
  'range':function(el){ui.range=Number(el.dataset.v);render();},
  'import-run':function(){
   var r=importFoods($('#imp').value);
