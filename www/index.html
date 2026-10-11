@@ -112,7 +112,8 @@ h2{font:700 22px/1.15 var(--font-d);letter-spacing:-.01em;margin:0}
 .hint{color:var(--muted);font-size:13px;margin:8px 0 0}
 
 /* weight */
-.wform{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:6px}
+.wform{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end;margin-bottom:6px}
+.wform .btn{grid-column:1/-1}
 .chart{width:100%;height:auto;margin:14px 0 8px;display:block}
 .chart path{fill:none;stroke:var(--amber);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
 .chart circle{fill:var(--amber)}
@@ -397,7 +398,7 @@ function sheetSettings(){
  '<div class="field"><span>Theme</span><div class="seg">'+th('system','System')+th('dark','Dark')+th('light','Light')+'</div></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 6</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -598,3 +599,4 @@ applyTheme();save();render();
 </script>
 </body>
 </html>
+
