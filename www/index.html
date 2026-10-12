@@ -479,11 +479,11 @@ function sheetSettings(){
  '<div class="inp"><input id="s-url" type="text" placeholder="Web app URL" value="'+esc(gs.url)+'" autocomplete="off"></div>'+
  '<div class="inp" style="margin-top:8px"><input id="s-token" type="password" placeholder="Password, leave empty if none" value="'+esc(gs.token)+'" autocomplete="off"></div>'+
  '<div class="inp" style="margin-top:8px"><input id="s-since" type="text" inputmode="numeric" placeholder="'+quarterStart()+'" value="'+esc(gs.since)+'" autocomplete="off"><em>send from</em></div>'+
- '<div class="two" style="margin-top:8px"><button class="btn ghost" data-act="sync-get">Get foods</button><button class="btn ghost" data-act="sync-send">Send to sheet</button></div>'+
+ '<div class="two" style="margin-top:8px"><button class="btn ghost" data-act="sync-get">Get from sheet</button><button class="btn ghost" data-act="sync-send">Send to sheet</button></div>'+
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 12</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 13</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -604,13 +604,38 @@ var actions={
  'sync-get':async function(){
   readSyncForm();syncMsg('Reading the sheet...',true);
   try{
-   var data=await callSheet('getFoods'),add=0,upd=0;
+   var data=await callSheet('getAll'),add=0,upd=0,today=todayStr();
    data.foods.forEach(function(x){
     var f=db.foods.find(function(y){return y.name.toLowerCase()===x.name.toLowerCase();});
     if(f){if(f.recipeId)return;f.unit='g';f.kcal=x.kcal;f.protein=x.protein;f.portionG=x.portionG;delete f.local;upd++;}
     else{db.foods.push({id:uid(),name:x.name,unit:'g',kcal:x.kcal,protein:x.protein,portionG:x.portionG});add++;}
    });
-   save();render();syncMsg('Foods updated: '+add+' new, '+upd+' updated.',true);
+   var wn=0;
+   data.weights.forEach(function(w){
+    var x=db.weights.find(function(y){return y.date===w.date;});
+    if(x)x.kg=r1(w.kg);else db.weights.push({date:w.date,kg:r1(w.kg)});
+    wn++;
+   });
+   var dn=0;
+   data.days.forEach(function(d){
+    if(d.date>=today)return;
+    if(db.entries.some(function(e){return e.date===d.date&&!e.imp;}))return;
+    db.entries=db.entries.filter(function(e){return !(e.imp&&e.date===d.date);});
+    if(!(d.kcal>0||d.protein>0))return;
+    db.entries.push({id:uid(),date:d.date,name:'Day total from sheet',unit:'portion',k:d.kcal,p:d.protein,qty:1,kcal:d.kcal,protein:d.protein,t:0,imp:true});
+    dn++;
+   });
+   db.entries=db.entries.filter(function(e){return !(e.src==='sheet'&&e.date===today);});
+   var own={},tn=0;
+   db.entries.forEach(function(e){if(e.date===today){var k=e.name.toLowerCase();own[k]=(own[k]||0)+1;}});
+   data.today.forEach(function(it){
+    var k=it.name.toLowerCase();
+    if(own[k]>0){own[k]--;return;}
+    db.entries.push({id:uid(),date:today,name:it.name,unit:it.unit,k:it.k,p:it.p,qty:it.qty>0?it.qty:1,kcal:r1(it.kcal),protein:r1(it.protein),t:Date.now()+tn,src:'sheet'});
+    tn++;
+   });
+   save();render();
+   syncMsg('Got '+(add+upd)+' foods ('+add+' new), '+wn+' weights, '+dn+' calendar days and '+tn+' meals for today.',true);
   }catch(e){syncMsg(syncError(e));}
  },
  'sync-send':async function(){
@@ -618,20 +643,21 @@ var actions={
   if(gs.since&&!/^\d{4}-\d{2}-\d{2}$/.test(gs.since)){syncMsg('Write the start date as YYYY-MM-DD.');return;}
   syncMsg('Sending...',true);
   try{
-   var since=gs.since||quarterStart();
+   var since=gs.since||quarterStart(),today=todayStr();
    var cand=db.foods.filter(function(f){return f.local&&!(f.recipeId||f.isRecipe);});
    var foods=cand.filter(function(f){return f.unit==='g';}).map(function(f){return{name:f.name,kcal:f.kcal,protein:f.protein,portionG:f.portionG>0?f.portionG:0};});
    var skipped=cand.length-foods.length;
    var tot=totalsByDate(),days=[];
    Object.keys(tot).forEach(function(d){if(d>=since)days.push({date:d,kcal:Math.round(tot[d].kcal),protein:r1(tot[d].protein)});});
    var ws=db.weights.filter(function(w){return w.date>=since;}).map(function(w){return{date:w.date,kg:w.kg};});
-   var a=await callSheet('pushFoods',{foods:foods});
-   var b=await callSheet('pushDays',{days:days});
-   var c=await callSheet('pushWeights',{weights:ws});
+   var meals=db.entries.filter(function(e){return e.date===today&&!e.imp;}).sort(function(a,b){return a.t-b.t;}).map(function(e){return{name:e.name,qty:e.qty,unit:e.unit==='g'?'g':'vnt.'};});
+   var r=await callSheet('pushAll',{foods:foods,days:days,weights:ws,today:meals});
    cand.forEach(function(f){if(f.unit==='g')delete f.local;});
    save();
-   var msg='Sent '+a.added+' new foods, '+b.updated+' days and '+(c.added+c.updated)+' weights.';
-   if(b.missing&&b.missing.length)msg+=' No row in Kalendorius for: '+b.missing.join(', ')+'.';
+   var msg='Sent '+r.foods.added+' new foods, '+r.days.updated+' days, '+(r.weights.added+r.weights.updated)+' weights and '+r.today.added+' meals for today.';
+   if(r.days.missing&&r.days.missing.length)msg+=' No row in Kalendorius for: '+r.days.missing.join(', ')+'.';
+   if(r.today.unknown&&r.today.unknown.length)msg+=' Not in the product list, so not added to Dienos kcal: '+r.today.unknown.join(', ')+'.';
+   if(r.today.full)msg+=' Dienos kcal has no free rows, '+r.today.full+' meal(s) not added.';
    if(skipped)msg+=' '+skipped+' food(s) skipped, they need values per 100 g.';
    syncMsg(msg,true);
   }catch(e){syncMsg(syncError(e));}
@@ -793,4 +819,3 @@ applyTheme();save();render();
 </script>
 </body>
 </html>
-
