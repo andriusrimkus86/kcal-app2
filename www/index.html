@@ -439,7 +439,7 @@ function viewFoods(){
  var sc=function(v,l){return '<button class="chip'+(ui.fsort===v?' on':'')+'" data-act="fsort" data-v="'+v+'">'+l+'</button>';};
  return '<header class="top"><div><h1>Foods</h1><p class="sub">'+db.foods.filter(function(x){return !(x.recipeId||x.isRecipe);}).length+' foods, '+db.foods.filter(function(x){return x.recipeId||x.isRecipe;}).length+' recipes</p></div><div class="tools"><button class="btn sm" data-act="import-open">Import</button><button class="btn primary sm" data-act="food-new" aria-label="New food">'+svg('plus',18)+'New</button></div></header>'+
  '<input class="search" id="fq" type="search" placeholder="Search foods" value="'+esc(ui.fq)+'" autocomplete="off" aria-label="Search foods">'+
- '<div class="chips" style="margin:0 0 10px">'+sc('az','A-Z')+sc('ratio','Protein per kcal')+sc('fav','Favourites')+sc('used','Most eaten')+'</div>'+
+ '<div class="chips" style="margin:0 0 10px">'+sc('az','A-Z')+sc('fav','Favourites')+sc('used','Most eaten')+'</div>'+
  '<div id="foods-list">'+foodsListHtml(ui.fq,'food-edit')+'</div>';
 }
 function chart(pts,tall){
@@ -713,7 +713,7 @@ function sheetScan(){
  return '<div class="sh"><h2>Scan barcode</h2>'+closeBtn()+'</div>'+
  '<div id="reader" class="reader"></div><p class="hint" id="scan-msg">Point the camera at the barcode.</p>'+
  '<div class="inp" style="margin-top:8px"><input id="sc-code" type="text" inputmode="numeric" placeholder="Or type the barcode number" autocomplete="off"></div>'+
- '<button class="btn ghost wide" data-act="scan-lookup">Look up</button>';
+ '<button class="btn ghost wide" data-act="scan-lookup">Look up</button>'+(nativeScanner()?'<button class="btn primary wide" data-act="scan-again">Scan again</button>':'');
 }
 function sheetQty(){
  var s=ui.sheet,f=s.food,isG=f.unit==='g',b=s.base,pg=b&&b.unit==='g'&&b.pg>0;
@@ -752,7 +752,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 17</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 19</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -858,7 +858,28 @@ function stopScan(){
  if(!h)return Promise.resolve();
  return h.stop().then(function(){try{h.clear();}catch(e){}}).catch(function(){});
 }
+function nativeScanner(){return window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.BarcodeScanner;}
+async function nativeScan(BS){
+ try{
+  var av=await BS.isGoogleBarcodeScannerModuleAvailable();
+  if(!av.available){
+   scanMsg('Installing the Google scanner module, this takes a minute. Then tap Scan again.');
+   await BS.installGoogleBarcodeScannerModule();
+   return;
+  }
+  var r=await BS.scan({formats:['Ean13','Ean8','UpcA','UpcE']});
+  var b=r&&r.barcodes&&r.barcodes[0];
+  if(b&&(b.rawValue||b.displayValue))lookupCode(b.rawValue||b.displayValue);
+  else scanMsg('No barcode was read. Try again, or type the number.');
+ }catch(e){
+  var m=String(e&&e.message||e);
+  if(/cancel/i.test(m))scanMsg('Scan cancelled. Tap Look up after typing a number, or close and try again.');
+  else scanMsg('The scanner failed ('+m+'). Type the barcode number instead.');
+ }
+}
 function startScan(){
+ var BS=nativeScanner();
+ if(BS){var rd=$('#reader');if(rd)rd.style.display='none';scanMsg('Opening the scanner...');nativeScan(BS);return;}
  loadScanner().then(function(){
   if(!ui.sheet||ui.sheet.type!=='scan'||!window.Html5Qrcode)return;
   var h=new Html5Qrcode('reader'),F=Html5QrcodeSupportedFormats;
@@ -917,14 +938,14 @@ var LT={
 'Goals and settings':'Tikslai ir nustatymai','Choose food':'Pasirinkti maistą','Add ingredient':'Pridėti ingredientą',
 'New food':'Naujas maistas','Quick add':'Greitas įrašas','Scan':'Skenuoti','Recent and frequent':'Neseniai ir dažnai valgyta',
 'Favourites':'Mėgstami','All foods':'Visi produktai','Search your foods':'Ieškoti produktų','Search foods':'Ieškoti produktų',
-'Import':'Importuoti','New':'Naujas','A-Z':'A-Z','Protein per kcal':'Baltymai / kcal','Most eaten':'Dažniausiai valgyta',
+'Import':'Importuoti','New':'Naujas','A-Z':'A-Z','Most eaten':'Dažniausiai valgyta',
 'Days logged':'Įrašytos dienos','Avg calories':'Vid. kalorijos','Avg protein':'Vid. baltymai','Goal days':'Tikslo dienos','Streak':'Serija','Best streak':'Geriausia serija',
 'Daily calories':'Dienos kalorijos','Daily protein':'Dienos baltymai','Theme':'Tema','System':'Sistema','Dark':'Tamsi','Light':'Šviesi','Language':'Kalba',
 'Backup':'Atsarginė kopija','Copy backup':'Kopijuoti kopiją','Restore from text':'Atkurti iš teksto','Get from sheet':'Gauti iš lentelės',
 'Name':'Pavadinimas','Calories':'Kalorijos','Save food':'Išsaugoti maistą','Delete food':'Ištrinti maistą','By gram':'Pagal gramus','By portion':'Pagal porcijas',
 'Amount eaten':'Suvalgytas kiekis','Portions eaten':'Suvalgytos porcijos','Choose another food':'Pasirinkti kitą maistą','Save changes':'Išsaugoti pakeitimus',
 'Remove entry':'Pašalinti įrašą','Add again':'Pridėti dar kartą','Copy to today':'Kopijuoti į šiandien','Add to recipe':'Pridėti į receptą',
-'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
+'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
 'Or type the barcode number':'Arba įveskite kodo numerį','New recipe':'Naujas receptas','Edit recipe':'Redaguoti receptą','Save recipe':'Išsaugoti receptą',
 'Delete recipe':'Ištrinti receptą','Makes':'Išeina','Portion weight':'Porcijos svoris','Add ingredient':'Pridėti ingredientą','Recipe':'Receptas',
 'Date':'Data','Save':'Išsaugoti','All weight entries':'Visi svorio įrašai','Latest':'Paskutinis','Change':'Pokytis','Average':'Vidurkis',
@@ -1067,6 +1088,7 @@ var actions={
   save();closeSheet();render();toast('Added '+fmtK(k)+' kcal');
  },
  'scan-open':function(){ui.sheet={type:'scan',date:ui.sheet.date,back:ui.sheet};renderSheet();},
+ 'scan-again':function(){startScan();},
  'scan-lookup':function(){lookupCode($('#sc-code').value);},
  'lang':function(el){db.lang=el.dataset.v==='lt'?'lt':'en';save();applyLang();renderSheet();},
  'today-send':function(){
@@ -1287,6 +1309,21 @@ document.addEventListener('keydown',function(e){
  }
 });
 
+/* ---------- android back button ---------- */
+var lastBack=0;
+function onBack(){
+ if(ui.menu){actions['menu-close']();return;}
+ if(ui.sheet){actions['close-sheet']();return;}
+ if(ui.tab==='graph'){actions.back();return;}
+ if(ui.tab!=='today'){ui.tab='today';render();window.scrollTo(0,0);return;}
+ var n=Date.now();
+ if(n-lastBack<2500){var A=window.Capacitor.Plugins.App;if(A&&A.exitApp)A.exitApp();return;}
+ lastBack=n;toast('Press back again to close the app',2500);
+}
+try{
+ var CA=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
+ if(CA&&CA.addListener)CA.addListener('backButton',onBack);
+}catch(e){}
 /* ---------- start ---------- */
 buildNav();
 applyTheme();save();render();
@@ -1295,3 +1332,4 @@ if(db.rem&&db.rem.on)scheduleReminder(true,db.rem.time,true);
 </script>
 </body>
 </html>
+
