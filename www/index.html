@@ -252,7 +252,7 @@ function defaults(){return{
   {id:uid(),name:'Oats, dry',unit:'g',kcal:370,protein:13},
   {id:uid(),name:'Chicken breast, cooked',unit:'g',kcal:165,protein:31},
   {id:uid(),name:'Egg, large',unit:'portion',kcal:72,protein:6.3}
- ],entries:[],weights:[],recipes:[],goals:{kcal:2200,protein:130},theme:'system',lang:'en',rem:{on:false,time:'20:00'}};}
+ ],entries:[],weights:[],recipes:[],goals:{kcal:2200,protein:130,maint:3200},theme:'system',lang:'en',rem:{on:false,time:'20:00',week:false}};}
 function normalize(d){var b=defaults();return{
  foods:Array.isArray(d.foods)?d.foods:[],
  entries:Array.isArray(d.entries)?d.entries:[],
@@ -261,11 +261,24 @@ function normalize(d){var b=defaults();return{
  goals:Object.assign({},b.goals,d.goals||{}),
  theme:['system','dark','light'].indexOf(d.theme)>=0?d.theme:'system',
  lang:d.lang==='lt'?'lt':'en',
- rem:(d.rem&&typeof d.rem==='object')?{on:!!d.rem.on,time:String(d.rem.time||'20:00')}:{on:false,time:'20:00'}};}
+ rem:(d.rem&&typeof d.rem==='object')?{on:!!d.rem.on,time:String(d.rem.time||'20:00'),week:!!d.rem.week}:{on:false,time:'20:00',week:false}};}
 function load(){try{var raw=localStorage.getItem(KEY);if(raw)return normalize(JSON.parse(raw));}catch(e){}return defaults();}
 var storageOk=true;
 var db=load();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(db));storageOk=true;}catch(e){storageOk=false;}}
+var widgetTimer=null;
+function widgetSoon(){clearTimeout(widgetTimer);widgetTimer=setTimeout(pushWidget,400);}
+function pushWidget(){
+ try{
+  var C=window.Capacitor;if(!C)return;
+  var t=dayTotals(todayStr()),o={date:todayStr(),kcal:String(r1(t.kcal)),protein:String(r1(t.protein)),goalKcal:String(db.goals.kcal||0),goalProtein:String(db.goals.protein||0),weight:'',weightDate:''};
+  var ws=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}),lw=ws[ws.length-1];
+  if(lw){o.weight=String(lw.kg);o.weightDate=lw.date;}
+  var P=C.Plugins&&C.Plugins.WidgetBridge;
+  if(P&&P.update)P.update(o).catch(function(){});
+  else if(C.nativePromise)C.nativePromise('WidgetBridge','update',o).catch(function(){});
+ }catch(e){}
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db));storageOk=true;}catch(e){storageOk=false;}widgetSoon();}
 
 var now=new Date();
 var ui={tab:'today',date:todayStr(),cal:{y:now.getFullYear(),m:now.getMonth()},sheet:null,menu:false,range:90,idea:{target:500,seed:1},ideaList:[],fsort:'az',fq:''};
@@ -478,7 +491,7 @@ function viewGraph(){
  '<div class="seg" style="margin-bottom:6px">'+rg(30,'30 days')+rg(90,'90 days')+rg(365,'1 year')+rg(0,'All')+'</div>'+body;
 }
 function renderMenu(){
- $('#menu-root').innerHTML=ui.menu?'<div class="mscrim" data-act="menu-close"></div><div class="menu" role="menu"><button role="menuitem" data-act="menu-recipes">'+svg('recipe')+'Recipes</button><button role="menuitem" data-act="menu-ideas">'+svg('idea')+'Recipe ideas</button><button role="menuitem" data-act="menu-graph">'+svg('chart')+'Weight graph</button><button role="menuitem" data-act="menu-settings">'+svg('sliders')+'Goals and settings</button></div>':'';
+ $('#menu-root').innerHTML=ui.menu?'<div class="mscrim" data-act="menu-close"></div><div class="menu" role="menu"><button role="menuitem" data-act="menu-recipes">'+svg('recipe')+'Recipes</button><button role="menuitem" data-act="menu-ideas">'+svg('idea')+'Recipe ideas</button><button role="menuitem" data-act="menu-week">'+svg('calendar')+'Weekly summary</button><button role="menuitem" data-act="menu-graph">'+svg('chart')+'Weight graph</button><button role="menuitem" data-act="menu-settings">'+svg('sliders')+'Goals and settings</button></div>':'';
 }
 var IDEA_EXCL=/cukrus|vynas|degtin|ledai|vanduo|\+100|random|sultinio|miltai|kotlet|sriub|trosk|desr|sasl|virtin|plovas|kokteil|pudding|drink|kava|^salotos su|^saltibarsciai|^cili( \(lidl\))?$|kopustai su|kose$|dziuvesel|^burokeliai saltibarsc|konservuoti kedainiu/;
 var IDEA_CATS=[
@@ -656,10 +669,36 @@ function sheetRecipe(){
  '<label class="field"><span>Portion weight</span><div class="inp"><input id="r-pw" type="text" inputmode="decimal" value="'+esc(s.pw)+'" autocomplete="off"><em>g</em></div></label></div>'+
  '<p class="hint" style="margin:-4px 0 12px">Enter the weight of one portion. Portions are calculated from the total ingredient weight divided by it, or type your own number. You also get calories and protein per 100 g, and can log the recipe by gram.</p>'+
  (s.items.length?'<ul class="list" style="margin-bottom:10px">'+items+'</ul>':'')+
+ (s.items.length&&num(s.serv)>0?'<div style="display:flex;gap:8px;align-items:flex-end;margin:0 0 12px"><label class="field" style="margin:0;flex:1"><span>Scale recipe to</span><div class="inp"><input id="r-scale" type="text" inputmode="decimal" placeholder="'+esc(fmtP(num(s.serv)))+'" autocomplete="off"><em>portions</em></div></label><button class="btn ghost" style="height:50px" data-act="recipe-scale">Scale</button></div>':'')+
  '<button class="btn ghost wide" style="margin:0 0 12px" data-act="recipe-add-item">'+svg('plus',18)+'Add ingredient</button>'+
  '<div class="preview" id="r-sum"></div><p class="err" id="err"></p>'+
  '<button class="btn primary wide" data-act="recipe-save">Save recipe</button>'+
  (s.id?'<button class="btn danger wide" data-act="recipe-del">Delete recipe</button><p class="hint">The food stays in your Foods list.</p>':'');
+}
+function addDays(s,n){var d=parseYmd(s);d.setDate(d.getDate()+n);return ymd(d);}
+function weekStart(s){var d=parseYmd(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return ymd(d);}
+function viewWeekly(){
+ var st=ui.wk||weekStart(todayStr()),en=addDays(st,6),tot=totalsByDate(),g=db.goals;
+ var sk=0,sp=0,n=0,hits=0,rows='',i,mt=g.maint>0?g.maint:3200,defi=0;
+ var names=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+ for(i=0;i<7;i++){
+  var ds=addDays(st,i),t=tot[ds],ok=goalHit(t);
+  if(t&&t.n){sk+=t.kcal;sp+=t.protein;n++;defi+=mt-t.kcal;}
+  if(ok)hits++;
+  rows+='<li><button class="row" data-act="open-day" data-date="'+ds+'"><span class="main"><b>'+names[i]+(ok?' <span class="star" style="color:var(--ok)">\u2713</span>':'')+'</b><small>'+ds+'</small></span><span class="vals">'+(t&&t.n?'<b class="k">'+fmtK(t.kcal)+' kcal</b><small class="p">'+fmtP(t.protein)+' g protein</small><small>'+(mt-t.kcal>=0?'deficit ':'surplus ')+fmtK(Math.abs(mt-t.kcal))+'</small>':'<small>Nothing logged</small>')+'</span></button></li>';
+ }
+ var ws=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;});
+ var inW=ws.filter(function(w){return w.date>=st&&w.date<=en;}),before=ws.filter(function(w){return w.date<st;});
+ var ref=before.length?before[before.length-1]:(inW.length>1?inW[0]:null),lastW=inW.length?inW[inW.length-1]:null;
+ var ch=(lastW&&ref)?lastW.kg-ref.kg:null;
+ var sign=function(d){return (d>0?'+':d<0?'\u2212':'')+fmtP(Math.abs(d))+' kg';};
+ var isNow=st===weekStart(todayStr());
+ return '<header class="top"><div><h1>Weekly summary</h1><p class="sub">'+st+' to '+en+'</p></div><div class="tools"><button class="icon" data-act="week-prev" aria-label="Previous week">'+svg('left')+'</button><button class="icon" data-act="week-next" aria-label="Next week"'+(isNow?' disabled style="opacity:.4"':'')+'>'+svg('right')+'</button></div></header>'+
+ '<dl class="stats"><div><dt>Days logged</dt><dd>'+n+' of 7</dd></div><div><dt>Avg calories</dt><dd>'+(n?fmtK(sk/n):'-')+'</dd></div><div><dt>Avg protein</dt><dd>'+(n?fmtP(sp/n)+' g':'-')+'</dd></div></dl>'+
+ '<dl class="stats" style="margin-top:0"><div><dt>Goal days</dt><dd>'+hits+'</dd></div><div><dt>Weight change</dt><dd>'+(ch===null?'-':sign(ch))+'</dd></div><div><dt>Latest weight</dt><dd>'+(lastW?fmtP(lastW.kg)+' kg':'-')+'</dd></div></dl>'+
+ '<dl class="stats" style="margin-top:0"><div><dt>'+(defi>=0?'Weekly deficit':'Weekly surplus')+'</dt><dd>'+(n?fmtK(Math.abs(defi))+' kcal':'-')+'</dd></div><div><dt>Per logged day</dt><dd>'+(n?fmtK(Math.abs(defi)/n):'-')+'</dd></div><div><dt>Maintenance</dt><dd>'+fmtK(mt)+'</dd></div></dl>'+
+ '<ul class="list" style="margin-top:14px">'+rows+'</ul>'+
+ '<p class="hint">Deficit is your maintenance calories minus what you ate, added up over the days you logged. Days with nothing logged are skipped, so log every meal for an honest number. About 7,700 kcal of deficit is roughly 1 kg of body fat. A tick marks a day that met your goals. Weight change compares the last weight this week with the last one before the week.</p>';
 }
 function viewWeight(){
  var w=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;});
@@ -741,9 +780,10 @@ function sheetSettings(){
  return '<div class="sh"><h2>Goals and settings</h2>'+closeBtn()+'</div>'+
  '<div class="two"><label class="field"><span>Daily calories</span><div class="inp"><input id="g-kcal" type="text" inputmode="decimal" value="'+esc(g.kcal)+'"><em>kcal</em></div></label>'+
  '<label class="field"><span>Daily protein</span><div class="inp"><input id="g-protein" type="text" inputmode="decimal" value="'+esc(g.protein)+'"><em>g</em></div></label></div>'+
+ '<label class="field"><span>Maintenance calories, used for the weekly deficit</span><div class="inp"><input id="g-maint" type="text" inputmode="decimal" value="'+esc(g.maint)+'"><em>kcal</em></div></label>'+
  '<div class="field"><span>Theme</span><div class="seg">'+th('system','System')+th('dark','Dark')+th('light','Light')+'</div></div>'+
  '<div class="field"><span>Language</span><div class="seg"><button class="'+(db.lang==='en'?'on':'')+'" data-act="lang" data-v="en">English</button><button class="'+(db.lang==='lt'?'on':'')+'" data-act="lang" data-v="lt">Lietuvi\u0173</button></div></div>'+
- '<div class="field"><span>Daily reminder (installed app)</span><label class="chk" style="padding-top:2px"><input type="checkbox" id="rem-on"'+(db.rem.on?' checked':'')+'><span>Remind me to log meals and weight</span></label><div class="inp"><input id="rem-time" type="time" value="'+esc(db.rem.time)+'"></div><p class="err" id="rem-msg" style="min-height:0"></p></div>'+
+ '<div class="field"><span>Daily reminder (installed app)</span><label class="chk" style="padding-top:2px"><input type="checkbox" id="rem-on"'+(db.rem.on?' checked':'')+'><span>Remind me to log meals and weight</span></label><label class="chk" style="padding-top:2px"><input type="checkbox" id="rem-week"'+(db.rem.week?' checked':'')+'><span>Sunday 19:00 reminder for the weekly summary</span></label><div class="inp"><input id="rem-time" type="time" value="'+esc(db.rem.time)+'"></div><p class="err" id="rem-msg" style="min-height:0"></p></div>'+
  '<div class="field"><span>Google Sheets sync (installed app)</span>'+
  '<div class="inp"><input id="s-url" type="text" placeholder="Web app URL" value="'+esc(gs.url)+'" autocomplete="off"></div>'+
  '<div class="inp" style="margin-top:8px"><input id="s-token" type="password" placeholder="Password, leave empty if none" value="'+esc(gs.token)+'" autocomplete="off"></div>'+
@@ -752,7 +792,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 19</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 22</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -797,7 +837,7 @@ function syncFoodForm(){
 
 /* ---------- render ---------- */
 function render(){
- var views={today:viewToday,calendar:viewCal,foods:viewFoods,weight:viewWeight,graph:viewGraph,recipes:viewRecipes,ideas:viewIdeas};
+ var views={today:viewToday,calendar:viewCal,foods:viewFoods,weight:viewWeight,graph:viewGraph,recipes:viewRecipes,ideas:viewIdeas,week:viewWeekly};
  $('#main').innerHTML=views[ui.tab]();
  var hd=$('#main .top');
  if(hd){var tl=hd.querySelector('.tools');if(!tl){tl=document.createElement('div');tl.className='tools';hd.appendChild(tl);}tl.insertAdjacentHTML('beforeend','<button class="icon" data-act="menu" aria-label="More pages" aria-haspopup="menu">'+svg('menu')+'</button>');}
@@ -925,10 +965,22 @@ async function scheduleReminder(on,time,quiet){
   if(!quiet)remMsg('Reminder set for '+time+' every day.',true);
  }catch(e){if(!quiet)remMsg('Could not set the reminder: '+(e&&e.message||e));}
 }
+async function scheduleWeekly(on,quiet){
+ var LN=remPlugin();
+ if(!LN){if(!quiet&&on)remMsg('Reminders work in the installed app only.');return;}
+ try{
+  await LN.cancel({notifications:[{id:2}]});
+  if(!on)return;
+  var perm=quiet?await LN.checkPermissions():await LN.requestPermissions();
+  if(perm.display!=='granted'){if(!quiet)remMsg('Notifications are blocked. Allow them for Kcal Log in the Android settings.');return;}
+  await LN.schedule({notifications:[{id:2,title:'Kcal Log',body:'Your weekly summary is ready.',schedule:{on:{weekday:1,hour:19,minute:0},allowWhileIdle:true}}]});
+  if(!quiet)remMsg('Weekly reminder set for Sunday 19:00.',true);
+ }catch(e){if(!quiet)remMsg('Could not set the weekly reminder: '+(e&&e.message||e));}
+}
 function applyReminder(){
- var on=$('#rem-on').checked,time=$('#rem-time').value||'20:00';
- db.rem={on:on,time:time};save();
- scheduleReminder(on,time,false);
+ var on=$('#rem-on').checked,time=$('#rem-time').value||'20:00',wk=$('#rem-week').checked;
+ db.rem={on:on,time:time,week:wk};save();
+ scheduleReminder(on,time,false).then(function(){return scheduleWeekly(wk,false);});
 }
 var LT={
 'Today':'Šiandien','Calendar':'Kalendorius','Foods':'Maistas','Weight':'Svoris','Add food':'Pridėti maistą',
@@ -945,7 +997,7 @@ var LT={
 'Name':'Pavadinimas','Calories':'Kalorijos','Save food':'Išsaugoti maistą','Delete food':'Ištrinti maistą','By gram':'Pagal gramus','By portion':'Pagal porcijas',
 'Amount eaten':'Suvalgytas kiekis','Portions eaten':'Suvalgytos porcijos','Choose another food':'Pasirinkti kitą maistą','Save changes':'Išsaugoti pakeitimus',
 'Remove entry':'Pašalinti įrašą','Add again':'Pridėti dar kartą','Copy to today':'Kopijuoti į šiandien','Add to recipe':'Pridėti į receptą',
-'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
+'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Weekly deficit':'Savaitės deficitas','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
 'Or type the barcode number':'Arba įveskite kodo numerį','New recipe':'Naujas receptas','Edit recipe':'Redaguoti receptą','Save recipe':'Išsaugoti receptą',
 'Delete recipe':'Ištrinti receptą','Makes':'Išeina','Portion weight':'Porcijos svoris','Add ingredient':'Pridėti ingredientą','Recipe':'Receptas',
 'Date':'Data','Save':'Išsaugoti','All weight entries':'Visi svorio įrašai','Latest':'Paskutinis','Change':'Pokytis','Average':'Vidurkis',
@@ -976,6 +1028,7 @@ var LT_RE=[
  [/^Reminders work in the installed app only\.$/,'Priminimai veikia tik įdiegtoje programoje.'],
  [/^Reminder set for (.+) every day\.$/,'Priminimas nustatytas $1 kasdien.'],
  [/^Reminder turned off\.$/,'Priminimas išjungtas.'],
+ [/^(\d) of 7$/,'$1 iš 7'],[/^(.+) to (\d{4}-\d{2}-\d{2})$/,'$1 – $2'],[/^Recipe scaled to (.+) portions?$/,'Receptas pakeistas į $1 porc.'],
  [/^Entry copied to (.+)$/,'Įrašas nukopijuotas į $1'],
  [/^Added (\d+) kcal$/,'Pridėta $1 kcal'],
  [/^Image removed$/,'']
@@ -1041,6 +1094,9 @@ var actions={
   syncRecipeForm();
   ui.sheet={type:'entry',step:'pick',purpose:'ingredient',recipe:ui.sheet,date:ui.date,food:null,qty:'',entryId:null};renderSheet();
  },
+ 'menu-week':function(){ui.menu=false;renderMenu();ui.tab='week';ui.wk=weekStart(todayStr());render();window.scrollTo(0,0);},
+ 'week-prev':function(){ui.wk=addDays(ui.wk,-7);render();},
+ 'week-next':function(){var n=addDays(ui.wk,7);if(n<=weekStart(todayStr())){ui.wk=n;render();}},
  'menu-ideas':function(){ui.menu=false;renderMenu();ui.tab='ideas';render();window.scrollTo(0,0);},
  'idea-shuffle':function(){ui.idea.seed++;refreshIdeas();},
  'idea-target':function(el){ui.idea.target=Number(el.dataset.v);render();},
@@ -1148,7 +1204,7 @@ var actions={
    var r=await callSheet('pushAll',{foods:foods,days:days,weights:ws,today:meals});
    cand.forEach(function(f){if(f.unit==='g')delete f.local;});
    save();
-   var msg='Sent '+r.foods.added+' new foods, '+r.days.updated+' days, '+(r.weights.added+r.weights.updated)+' weights and '+r.today.added+' meals for today.';
+   var msg='Sent '+r.foods.added+' new foods, '+r.days.updated+' days, '+(r.weights.added+r.weights.updated)+' weights and '+r.today.added+' new meals for today'+(r.today.updated?' ('+r.today.updated+' updated)':'')+'.';
    if(r.days.missing&&r.days.missing.length)msg+=' No row in Kalendorius for: '+r.days.missing.join(', ')+'.';
    if(r.today.unknown&&r.today.unknown.length)msg+=' Not in the product list, so not added to Dienos kcal: '+r.today.unknown.join(', ')+'.';
    if(r.today.full)msg+=' Dienos kcal has no free rows, '+r.today.full+' meal(s) not added.';
@@ -1157,6 +1213,23 @@ var actions={
   }catch(e){syncMsg(syncError(e));}finally{syncBusy=false;}
  },
  'recipe-calc':function(){var s=ui.sheet;s.servAuto=true;autoServings();updateRecipeSum();},
+ 'recipe-scale':function(){
+  syncRecipeForm();
+  var s=ui.sheet,old=num(s.serv),nw=num($('#r-scale').value);
+  if(!(old>0)){setErr('Enter how many portions the recipe makes first.');return;}
+  if(!(nw>0&&nw<=1000)){setErr('Enter the new number of portions.');return;}
+  var f=nw/old,before=JSON.stringify(s.items),bs=s.serv;
+  s.items=s.items.map(function(i){
+   var q=i.unit==='g'?Math.round(i.qty*f*10)/10:Math.round(i.qty*f*100)/100;
+   if(!(q>0))q=i.qty;
+   var c=calc(i.unit,i.k,i.p,q),o=Object.assign({},i,{qty:q,kcal:c.kcal,protein:c.protein});
+   if(i.g>0)o.g=r1(i.g*q/i.qty);
+   return o;
+  });
+  s.serv=String(r3(nw));
+  renderSheet();
+  toast('Recipe scaled to '+fmtP(nw)+(nw===1?' portion':' portions'),function(){var sh=ui.sheet;if(sh&&sh.type==='recipe'){sh.items=JSON.parse(before);sh.serv=bs;renderSheet();}});
+ },
  'recipe-item-del':function(el){syncRecipeForm();ui.sheet.items.splice(Number(el.dataset.n),1);renderSheet();},
  'recipe-save':function(){
   syncRecipeForm();
@@ -1292,11 +1365,11 @@ document.addEventListener('input',function(e){
 });
 document.addEventListener('change',function(e){
  var t=e.target;
- if(t.id==='rem-on'||t.id==='rem-time'){applyReminder();return;}
+ if(t.id==='rem-on'||t.id==='rem-time'||t.id==='rem-week'){applyReminder();return;}
   if(t.id==='w-date'){var tx=$('#w-date-txt');if(tx)tx.textContent=t.value||todayStr();return;}
-  if(t.id==='g-kcal'||t.id==='g-protein'){
+  if(t.id==='g-kcal'||t.id==='g-protein'||t.id==='g-maint'){
   var v=num(t.value);
-  if(v>=0){db.goals[t.id==='g-kcal'?'kcal':'protein']=v;save();render();setErr('Goal saved.',true);}
+  if(v>=0){db.goals[t.id==='g-kcal'?'kcal':t.id==='g-maint'?'maint':'protein']=v;save();render();setErr('Goal saved.',true);}
   else setErr('Enter a number.');
  }
 });
@@ -1328,8 +1401,9 @@ try{
 buildNav();
 applyTheme();save();render();
 if(db.rem&&db.rem.on)scheduleReminder(true,db.rem.time,true);
+if(db.rem&&db.rem.week)scheduleWeekly(true,true);
+pushWidget();
 })();
 </script>
 </body>
 </html>
-
