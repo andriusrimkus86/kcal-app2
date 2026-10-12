@@ -216,6 +216,7 @@ var I={
  sliders:'<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>',
  trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
  menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+ upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
  chart:'<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>',
  recipe:'<path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><path d="M6 17h12"/>'
 };
@@ -290,6 +291,7 @@ function viewToday(){
  '<div class="meter"><i style="width:'+kp+'%"></i></div><p class="note">'+note+'</p>'+
  '<div class="prot"><span>Protein</span><b>'+fmtP(t.protein)+' g'+(g.protein>0?' of '+fmtP(g.protein)+' g':'')+'</b></div>'+
  '<div class="meter blue"><i style="width:'+pp+'%"></i></div></section>'+
+ '<button class="btn ghost sm" style="margin:0 0 12px" data-act="today-send">'+svg('upload',18)+'Send to sheet</button>'+
  (entries.length?'<ul class="list">'+rows+'</ul>':'<div class="empty"><b>Nothing logged yet</b><p>Tap Add food to log what you ate.</p></div>');
 }
 
@@ -483,7 +485,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 13</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 14</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -533,14 +535,14 @@ function render(){
  if(ui.sheet&&ui.sheet.type==='weights')renderSheet();
  $('#notice').innerHTML=storageOk?'':'<div class="warn">This browser is blocking storage, so your data will not be kept after you close the page.</div>';
 }
-function toast(msg,undo){
+function toast(msg,undo,ms){
  clearTimeout(toastTimer);lastUndo=undo||null;
  var t=$('#toast');t.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button data-act="undo">Undo</button>':'');
- t.classList.add('show');toastTimer=setTimeout(function(){t.classList.remove('show');},5000);
+ t.classList.add('show');toastTimer=setTimeout(function(){t.classList.remove('show');},ms||5000);
 }
 var SKEY='kcal-sync-v1';
 function loadSync(){try{var r=localStorage.getItem(SKEY);if(r){var d=JSON.parse(r);return{url:d.url||'',token:d.token||'',since:d.since||''};}}catch(e){}return{url:'',token:'',since:''};}
-var gs=loadSync();
+var gs=loadSync(),syncBusy=false;
 function saveSync(){try{localStorage.setItem(SKEY,JSON.stringify(gs));}catch(e){}}
 function quarterStart(){var n=new Date(),m=Math.floor(n.getMonth()/3)*3;return n.getFullYear()+'-'+pad(m+1)+'-01';}
 function readSyncForm(){
@@ -550,7 +552,7 @@ function readSyncForm(){
  if(d)gs.since=d.value.trim();
  saveSync();
 }
-function syncMsg(msg,ok){var e=$('#sync-msg');if(e){e.textContent=msg;e.className='err'+(ok?' ok':'');}}
+function syncMsg(msg,ok){var e=$('#sync-msg');if(e){e.textContent=msg;e.className='err'+(ok?' ok':'');}else{toast(msg,null,9000);}}
 function syncError(e){
  var m=String(e&&e.message||e);
  if(/password|Enter the|Tab not found|Unknown action/i.test(m))return m;
@@ -601,8 +603,12 @@ var actions={
   syncRecipeForm();
   ui.sheet={type:'entry',step:'pick',purpose:'ingredient',recipe:ui.sheet,date:ui.date,food:null,qty:'',entryId:null};renderSheet();
  },
+ 'today-send':function(){
+  if(!gs.url){ui.sheet={type:'settings'};renderSheet();return;}
+  actions['sync-send']();
+ },
  'sync-get':async function(){
-  readSyncForm();syncMsg('Reading the sheet...',true);
+  if(syncBusy)return;syncBusy=true;readSyncForm();syncMsg('Reading the sheet...',true);
   try{
    var data=await callSheet('getAll'),add=0,upd=0,today=todayStr();
    data.foods.forEach(function(x){
@@ -636,12 +642,12 @@ var actions={
    });
    save();render();
    syncMsg('Got '+(add+upd)+' foods ('+add+' new), '+wn+' weights, '+dn+' calendar days and '+tn+' meals for today.',true);
-  }catch(e){syncMsg(syncError(e));}
+  }catch(e){syncMsg(syncError(e));}finally{syncBusy=false;}
  },
  'sync-send':async function(){
   readSyncForm();
   if(gs.since&&!/^\d{4}-\d{2}-\d{2}$/.test(gs.since)){syncMsg('Write the start date as YYYY-MM-DD.');return;}
-  syncMsg('Sending...',true);
+  if(syncBusy)return;syncBusy=true;syncMsg('Sending...',true);
   try{
    var since=gs.since||quarterStart(),today=todayStr();
    var cand=db.foods.filter(function(f){return f.local&&!(f.recipeId||f.isRecipe);});
@@ -660,7 +666,7 @@ var actions={
    if(r.today.full)msg+=' Dienos kcal has no free rows, '+r.today.full+' meal(s) not added.';
    if(skipped)msg+=' '+skipped+' food(s) skipped, they need values per 100 g.';
    syncMsg(msg,true);
-  }catch(e){syncMsg(syncError(e));}
+  }catch(e){syncMsg(syncError(e));}finally{syncBusy=false;}
  },
  'recipe-calc':function(){var s=ui.sheet;s.servAuto=true;autoServings();updateRecipeSum();},
  'recipe-item-del':function(el){syncRecipeForm();ui.sheet.items.splice(Number(el.dataset.n),1);renderSheet();},
