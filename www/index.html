@@ -669,7 +669,7 @@ function sheetRecipe(){
  '<label class="field"><span>Portion weight</span><div class="inp"><input id="r-pw" type="text" inputmode="decimal" value="'+esc(s.pw)+'" autocomplete="off"><em>g</em></div></label></div>'+
  '<p class="hint" style="margin:-4px 0 12px">Enter the weight of one portion. Portions are calculated from the total ingredient weight divided by it, or type your own number. You also get calories and protein per 100 g, and can log the recipe by gram.</p>'+
  (s.items.length?'<ul class="list" style="margin-bottom:10px">'+items+'</ul>':'')+
- (s.items.length&&num(s.serv)>0?'<div style="display:flex;gap:8px;align-items:flex-end;margin:0 0 12px"><label class="field" style="margin:0;flex:1"><span>Scale recipe to</span><div class="inp"><input id="r-scale" type="text" inputmode="decimal" placeholder="'+esc(fmtP(num(s.serv)))+'" autocomplete="off"><em>portions</em></div></label><button class="btn ghost" style="height:50px" data-act="recipe-scale">Scale</button></div>':'')+
+ (s.items.length&&num(s.serv)>0?'<div style="display:flex;gap:8px;align-items:flex-end;margin:0 0 12px"><label class="field" style="margin:0;flex:1;min-width:0"><span>Scale recipe to</span><div class="inp"><input id="r-scale" type="text" inputmode="decimal" placeholder="'+esc(fmtP(num(s.serv)))+'" autocomplete="off"><em>portions</em></div></label><button class="btn ghost" style="height:50px;flex:none;padding:0 16px" data-act="recipe-scale">Scale</button></div>':'')+
  '<button class="btn ghost wide" style="margin:0 0 12px" data-act="recipe-add-item">'+svg('plus',18)+'Add ingredient</button>'+
  '<div class="preview" id="r-sum"></div><p class="err" id="err"></p>'+
  '<button class="btn primary wide" data-act="recipe-save">Save recipe</button>'+
@@ -792,7 +792,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 22</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 23</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
