@@ -32,7 +32,8 @@ jobs:
         run: |
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <application#' "$M"
-          grep -n "uses-permission" "$M"
+          sed -i 's#<application\([^>]*\)>#<application\1>\n        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />#' "$M"
+          grep -n "uses-permission\|DEPENDENCIES" "$M"
 
       - name: Build debug APK
         working-directory: android
