@@ -136,6 +136,20 @@ h2{font:700 22px/1.15 var(--font-d);letter-spacing:-.01em;margin:0}
 .stats dt{font-size:12px;color:var(--muted)}
 .stats dd{margin:2px 0 0;font:700 18px var(--font-d);font-variant-numeric:tabular-nums}
 .hint{color:var(--muted);font-size:13px;margin:8px 0 0}
+.bmi{display:inline-block;font:700 12px/20px var(--font-b);padding:0 8px;margin-left:6px;border-radius:999px;vertical-align:middle;white-space:nowrap}
+.bmi.g{background:var(--ok-bg);color:var(--ok)}
+.bmi.y{background:rgba(235,170,75,.22);color:var(--amber-text)}
+.bmi.r{background:rgba(214,69,50,.2);color:var(--danger)}
+.bmi.b{background:var(--rec-bg);color:var(--rec)}
+.prog{background:var(--surface);border-radius:16px;padding:14px 16px;margin-top:16px}
+.prog h3{margin:0 0 10px;font:700 16px var(--font-d)}
+.prog .meter{height:14px;margin:6px 0 4px}
+.prog .pct{display:flex;justify-content:space-between;align-items:baseline}
+.prog .pct b{font:700 28px var(--font-d);color:var(--amber-text);font-variant-numeric:tabular-nums}
+.prog dl{display:grid;grid-template-columns:1fr auto;gap:6px 12px;margin:12px 0 0}
+.prog dt{color:var(--muted);font-size:14px}
+.prog dd{margin:0;text-align:right;font:700 16px var(--font-d);font-variant-numeric:tabular-nums}
+.prog .sep{border-top:1px solid var(--line);margin-top:12px;padding-top:2px}
 
 /* weight */
 .wform{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end;margin-bottom:6px}
@@ -474,6 +488,43 @@ function chart(pts,tall){
   '<text class="ax" x="'+L+'" y="'+(H-6)+'">'+fd(pts[0].date)+'</text><text class="ax" x="'+(W-R)+'" y="'+(H-6)+'" text-anchor="end">'+fd(pts[pts.length-1].date)+'</text>';
  return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Weight over time in kilograms">'+grid+'<path d="'+path+'"/>'+dots+xl+'</svg>';
 }
+function heightCm(){var h=num(db.goals.height);return h>=100&&h<=250?h:0;}
+function bmiOf(kg){var h=heightCm();return h?kg/Math.pow(h/100,2):0;}
+function bmiChip(kg){
+ var b=bmiOf(kg);if(!(b>0))return '';
+ var c=b>=30?['r','Obese']:b>=25?['y','Overweight']:b>=18.5?['g','Normal']:['b','Underweight'];
+ return '<span class="bmi '+c[0]+'" title="BMI '+r1(b)+', '+c[1]+'">BMI '+r1(b)+' '+c[1]+'</span>';
+}
+function dayDiff(a,b){return Math.round((parseYmd(b)-parseYmd(a))/864e5);}
+function progressHtml(w){
+ var g=db.goals,goal=num(g.goalW),h=heightCm(),st=String(g.start||'').trim();
+ var inp=function(id,lab,val,unit,ph){return '<label class="field" style="margin:0"><span>'+lab+'</span><div class="inp"><input id="'+id+'" type="text" inputmode="decimal" value="'+esc(val==null?'':val)+'" placeholder="'+ph+'" autocomplete="off"><em>'+unit+'</em></div></label>';};
+ var form='<div class="two" style="margin-bottom:10px">'+inp('pg-goal','Goal weight',g.goalW,'kg','95')+inp('pg-height','Height (for BMI)',g.height,'cm','180')+'</div>'+
+  '<label class="field" style="margin:0 0 4px"><span>Start date, optional (default: first entry)</span><div class="inp"><input id="pg-start" type="text" inputmode="numeric" value="'+esc(st)+'" placeholder="YYYY-MM-DD" autocomplete="off"></div></label>';
+ var ws=w.slice();
+ if(/^\d{4}-\d{2}-\d{2}$/.test(st)){var f=ws.filter(function(x){return x.date>=st;});if(f.length)ws=f;}
+ var out='<div class="prog"><h3>Progress to your goal</h3>'+form;
+ if(!ws.length)return out+'</div>';
+ var first=ws[0],last=ws[ws.length-1],days=dayDiff(first.date,last.date),lost=first.kg-last.kg;
+ if(!(goal>0)){return out+'<p class="hint">Enter your goal weight to see the progress bar.</p></div>';}
+ var total=first.kg-goal,left=last.kg-goal;
+ var pct=total>0?Math.max(0,Math.min(100,lost/total*100)):(left<=0?100:0);
+ var per=days>0?lost/days:0;
+ var eta='-',etaDate='-';
+ if(left<=0){eta='Goal reached';etaDate='';}
+ else if(per>0){var d=Math.ceil(left/per);eta=d+' d.';etaDate=addDays(last.date,d);}
+ var row=function(l,v){return '<dt>'+l+'</dt><dd>'+v+'</dd>';};
+ out+='<div class="pct" style="margin-top:14px"><b>'+fmtP(pct)+'%</b><span class="muted">lost of '+fmtP(Math.max(total,0))+' kg to go</span></div><div class="meter"><i style="width:'+pct+'%"></i></div>'+
+ '<dl>'+row('Target weight',fmtP(goal)+' kg')+row('Lost so far',(lost>=0?'':'+')+fmtP(Math.abs(lost))+' kg'+(lost<0?' gained':''))+row('Left to lose',left>0?fmtP(left)+' kg':'0 kg')+
+ row('Per day (average)',days>0?(lost>=0?'':'\u2212')+Math.abs(per).toFixed(3)+' kg':'-')+
+ row('Could be done in',eta)+(etaDate?row('Could be done on',etaDate):'')+
+ (h?row('BMI now',bmiChip(last.kg)):'')+
+ (h?row('BMI lost',(bmiOf(first.kg)-bmiOf(last.kg)).toFixed(2)):'')+'</dl>'+
+ '<dl class="sep">'+row('Total days',days+' d')+row('Total lost',(lost>=0?'':'\u2212')+fmtP(Math.abs(lost))+' kg')+'</dl>'+
+ (h?'':'<p class="hint">Enter your height to see BMI.</p>')+
+ '<p class="hint">The date assumes you keep losing at the average speed of your whole period, from the first entry to the latest.</p></div>';
+ return out;
+}
 function viewGraph(){
  var w=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;});
  var cut=ui.range?ymd(new Date(Date.now()-ui.range*864e5)):'';
@@ -488,7 +539,7 @@ function viewGraph(){
   body=chart(pts,true)+'<dl class="stats"><div><dt>Latest</dt><dd>'+fmtP(last.kg)+' kg</dd></div><div><dt>Change</dt><dd>'+(pts.length>1?sign(last.kg-first.kg):'-')+'</dd></div><div><dt>Average</dt><dd>'+fmtP(avg)+' kg</dd></div></dl>';
  }
  return '<header class="top"><div style="display:flex;gap:10px;align-items:flex-start"><button class="icon" data-act="back" aria-label="Back to weight">'+svg('left')+'</button><div><h1>Weight graph</h1><p class="sub">'+(w.length?pts.length+' of '+w.length+' entries shown':'No entries yet')+'</p></div></div></header>'+
- '<div class="seg" style="margin-bottom:6px">'+rg(30,'30 days')+rg(90,'90 days')+rg(365,'1 year')+rg(0,'All')+'</div>'+body;
+ '<div class="seg" style="margin-bottom:6px">'+rg(30,'30 days')+rg(90,'90 days')+rg(365,'1 year')+rg(0,'All')+'</div>'+body+(w.length?progressHtml(w):'');
 }
 function renderMenu(){
  $('#menu-root').innerHTML=ui.menu?'<div class="mscrim" data-act="menu-close"></div><div class="menu" role="menu"><button role="menuitem" data-act="menu-recipes">'+svg('recipe')+'Recipes</button><button role="menuitem" data-act="menu-ideas">'+svg('idea')+'Recipe ideas</button><button role="menuitem" data-act="menu-week">'+svg('calendar')+'Weekly summary</button><button role="menuitem" data-act="menu-graph">'+svg('chart')+'Weight graph</button><button role="menuitem" data-act="menu-settings">'+svg('sliders')+'Goals and settings</button></div>':'';
@@ -703,10 +754,10 @@ function viewWeekly(){
 function viewWeight(){
  var w=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;});
  var last=w[w.length-1],first=w[0],sign=function(d){return (d>0?'+':d<0?'\u2212':'')+fmtP(Math.abs(d))+' kg';};
- var sub=last?fmtP(last.kg)+' kg on '+last.date+(w.length>1?', '+sign(last.kg-first.kg)+' since first entry':''):'No entries yet';
+ var sub=last?fmtP(last.kg)+' kg'+bmiChip(last.kg)+' on '+last.date+(w.length>1?', '+sign(last.kg-first.kg)+' since first entry':''):'No entries yet';
  var rows=w.slice().reverse().map(function(e){
   var i=w.indexOf(e),prev=i>0?w[i-1]:null;
-  return '<li class="wrow"><span class="main"><span class="kg">'+fmtP(e.kg)+' kg</span><small class="delta">'+longDate(e.date)+(prev?', '+sign(e.kg-prev.kg):'')+'</small></span><button class="x" data-act="weight-del" data-date="'+e.date+'" aria-label="Delete entry from '+e.date+'">'+svg('trash',20)+'</button></li>';});weightRowsCache=rows;
+  return '<li class="wrow"><span class="main"><span class="kg">'+fmtP(e.kg)+' kg'+bmiChip(e.kg)+'</span><small class="delta">'+longDate(e.date)+(prev?', '+sign(e.kg-prev.kg):'')+'</small></span><button class="x" data-act="weight-del" data-date="'+e.date+'" aria-label="Delete entry from '+e.date+'">'+svg('trash',20)+'</button></li>';});weightRowsCache=rows;
  return '<header class="top"><div><h1>Weight</h1><p class="sub">'+sub+'</p></div></header>'+
  '<div class="wform"><label class="field" style="margin:0"><span>Date</span><div class="datebox"><span id="w-date-txt">'+todayStr()+'</span>'+svg('calendar',18)+'<input type="date" id="w-date" value="'+todayStr()+'"></div></label>'+
  '<label class="field" style="margin:0"><span>Weight</span><div class="inp"><input id="w-kg" type="text" inputmode="decimal" placeholder="78.4" autocomplete="off"><em>kg</em></div></label>'+
@@ -792,7 +843,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 23</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 24</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -997,7 +1048,7 @@ var LT={
 'Name':'Pavadinimas','Calories':'Kalorijos','Save food':'Išsaugoti maistą','Delete food':'Ištrinti maistą','By gram':'Pagal gramus','By portion':'Pagal porcijas',
 'Amount eaten':'Suvalgytas kiekis','Portions eaten':'Suvalgytos porcijos','Choose another food':'Pasirinkti kitą maistą','Save changes':'Išsaugoti pakeitimus',
 'Remove entry':'Pašalinti įrašą','Add again':'Pridėti dar kartą','Copy to today':'Kopijuoti į šiandien','Add to recipe':'Pridėti į receptą',
-'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Weekly deficit':'Savaitės deficitas','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
+'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
 'Or type the barcode number':'Arba įveskite kodo numerį','New recipe':'Naujas receptas','Edit recipe':'Redaguoti receptą','Save recipe':'Išsaugoti receptą',
 'Delete recipe':'Ištrinti receptą','Makes':'Išeina','Portion weight':'Porcijos svoris','Add ingredient':'Pridėti ingredientą','Recipe':'Receptas',
 'Date':'Data','Save':'Išsaugoti','All weight entries':'Visi svorio įrašai','Latest':'Paskutinis','Change':'Pokytis','Average':'Vidurkis',
@@ -1367,6 +1418,12 @@ document.addEventListener('change',function(e){
  var t=e.target;
  if(t.id==='rem-on'||t.id==='rem-time'||t.id==='rem-week'){applyReminder();return;}
   if(t.id==='w-date'){var tx=$('#w-date-txt');if(tx)tx.textContent=t.value||todayStr();return;}
+  if(t.id==='pg-goal'||t.id==='pg-height'||t.id==='pg-start'){
+  var raw=String(t.value).trim(),key=t.id==='pg-goal'?'goalW':t.id==='pg-height'?'height':'start';
+  if(key==='start'){if(raw===''||/^\d{4}-\d{2}-\d{2}$/.test(raw))db.goals.start=raw;else{toast('Write the start date as YYYY-MM-DD.');return;}}
+  else{var nv=num(raw);if(raw===''){delete db.goals[key];}else if(nv>0)db.goals[key]=nv;else{toast('Enter a number.');return;}}
+  save();render();return;
+ }
   if(t.id==='g-kcal'||t.id==='g-protein'||t.id==='g-maint'){
   var v=num(t.value);
   if(v>=0){db.goals[t.id==='g-kcal'?'kcal':t.id==='g-maint'?'maint':'protein']=v;save();render();setErr('Goal saved.',true);}
