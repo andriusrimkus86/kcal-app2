@@ -682,7 +682,7 @@ function viewRecipes(){
  db.recipes.forEach(function(r){
   var tk=0,tp=0;r.items.forEach(function(i){tk+=i.kcal;tp+=i.protein;});
   var sv=r.servings>0?r.servings:1;
-  items.push({name:r.name,html:'<li><button class="row rec" data-act="recipe-edit" data-id="'+r.id+'"><span class="main"><b>'+esc(r.name)+'</b><small>'+fmtP(sv)+(sv===1?' portion':' portions')+', '+r.items.length+(r.items.length===1?' ingredient':' ingredients')+'</small></span><span class="vals"><b class="k">'+fmtK(tk/sv)+' kcal</b><small class="p">'+fmtP(tp/sv)+' g protein</small></span></button></li>'});
+  items.push({name:r.name,html:'<li><button class="row rec" data-act="recipe-edit" data-id="'+r.id+'"><span class="main"><b>'+esc(r.name)+'</b><small>'+fmtP(sv)+(sv===1?' portion':' portions')+', '+r.items.length+(r.items.length===1?' ingredient':' ingredients')+'</small>'+(r.notes?'<small style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55vw">'+esc(r.notes.split('\n')[0])+'</small>':'')+'</span><span class="vals"><b class="k">'+fmtK(tk/sv)+' kcal</b><small class="p">'+fmtP(tp/sv)+' g protein</small></span></button></li>'});
  });
  db.foods.forEach(function(x){
   if(!x.isRecipe||x.recipeId)return;
@@ -696,6 +696,7 @@ function syncRecipeForm(){
  var s=ui.sheet;if(!s||s.type!=='recipe')return;
  var g=function(id){var e=$(id);return e?e.value:'';};
  s.name=g('#r-name');s.serv=g('#r-serv');s.pw=g('#r-pw');
+ var nt=$('#r-notes');if(nt)s.notes=nt.value;
 }
 function updateRecipeSum(){
  var s=ui.sheet,el=$('#r-sum');if(!s||s.type!=='recipe'||!el)return;
@@ -722,7 +723,8 @@ function sheetRecipe(){
  (s.items.length?'<ul class="list" style="margin-bottom:10px">'+items+'</ul>':'')+
  (s.items.length&&num(s.serv)>0?'<div style="display:flex;gap:8px;align-items:flex-end;margin:0 0 12px"><label class="field" style="margin:0;flex:1;min-width:0"><span>Scale recipe to</span><div class="inp"><input id="r-scale" type="text" inputmode="decimal" placeholder="'+esc(fmtP(num(s.serv)))+'" autocomplete="off"><em>portions</em></div></label><button class="btn ghost" style="height:50px;flex:none;padding:0 16px" data-act="recipe-scale">Scale</button></div>':'')+
  '<button class="btn ghost wide" style="margin:0 0 12px" data-act="recipe-add-item">'+svg('plus',18)+'Add ingredient</button>'+
- '<div class="preview" id="r-sum"></div><p class="err" id="err"></p>'+
+ '<div class="preview" id="r-sum"></div>'+
+ '<label class="field" style="margin:14px 0 0"><span>Notes</span><textarea id="r-notes" rows="5" maxlength="4000" placeholder="Cooking steps, tips, seasoning, how long it keeps...">'+esc(s.notes||'')+'</textarea></label><p class="err" id="err"></p>'+
  '<button class="btn primary wide" data-act="recipe-save">Save recipe</button>'+
  (s.id?'<button class="btn danger wide" data-act="recipe-del">Delete recipe</button><p class="hint">The food stays in your Foods list.</p>':'');
 }
@@ -843,7 +845,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 24</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 25</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -1048,7 +1050,7 @@ var LT={
 'Name':'Pavadinimas','Calories':'Kalorijos','Save food':'Išsaugoti maistą','Delete food':'Ištrinti maistą','By gram':'Pagal gramus','By portion':'Pagal porcijas',
 'Amount eaten':'Suvalgytas kiekis','Portions eaten':'Suvalgytos porcijos','Choose another food':'Pasirinkti kitą maistą','Save changes':'Išsaugoti pakeitimus',
 'Remove entry':'Pašalinti įrašą','Add again':'Pridėti dar kartą','Copy to today':'Kopijuoti į šiandien','Add to recipe':'Pridėti į receptą',
-'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
+'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
 'Or type the barcode number':'Arba įveskite kodo numerį','New recipe':'Naujas receptas','Edit recipe':'Redaguoti receptą','Save recipe':'Išsaugoti receptą',
 'Delete recipe':'Ištrinti receptą','Makes':'Išeina','Portion weight':'Porcijos svoris','Add ingredient':'Pridėti ingredientą','Recipe':'Receptas',
 'Date':'Data','Save':'Išsaugoti','All weight entries':'Visi svorio įrašai','Latest':'Paskutinis','Change':'Pokytis','Average':'Vidurkis',
@@ -1136,10 +1138,10 @@ var actions={
  'back':function(){ui.tab='weight';render();window.scrollTo(0,0);},
  'weights-all':function(){ui.sheet={type:'weights'};renderSheet();},
  'menu-recipes':function(){ui.menu=false;renderMenu();ui.tab='recipes';render();window.scrollTo(0,0);},
- 'recipe-new':function(){ui.sheet={type:'recipe',id:null,name:'',serv:'',pw:'',servAuto:true,items:[]};renderSheet();},
+ 'recipe-new':function(){ui.sheet={type:'recipe',id:null,name:'',serv:'',pw:'',notes:'',servAuto:true,items:[]};renderSheet();},
  'recipe-edit':function(el){
   var r=db.recipes.find(function(x){return x.id===el.dataset.id;});if(!r)return;
-  ui.sheet={type:'recipe',id:r.id,name:r.name,servAuto:false,serv:String(r.servings),pw:r.portionG?String(r.portionG):(r.totalG>0&&r.servings>0?String(r3(r.totalG/r.servings)):''),items:r.items.map(function(i){return Object.assign({},i);})};renderSheet();
+  ui.sheet={type:'recipe',id:r.id,name:r.name,servAuto:false,notes:r.notes||'',serv:String(r.servings),pw:r.portionG?String(r.portionG):(r.totalG>0&&r.servings>0?String(r3(r.totalG/r.servings)):''),items:r.items.map(function(i){return Object.assign({},i);})};renderSheet();
  },
  'recipe-add-item':function(){
   syncRecipeForm();
@@ -1158,7 +1160,7 @@ var actions={
    var c=calc('g',it.f.kcal,it.f.protein,it.g);tg+=it.g;
    return{name:it.f.name,unit:'g',k:it.f.kcal,p:it.f.protein,qty:it.g,kcal:c.kcal,protein:c.protein,g:it.g};
   });
-  ui.sheet={type:'recipe',id:null,name:idea.title.slice(0,60),serv:'1',pw:String(Math.round(tg)),servAuto:true,items:items};
+  ui.sheet={type:'recipe',id:null,name:idea.title.slice(0,60),serv:'1',pw:String(Math.round(tg)),servAuto:true,notes:idea.t.how||'',items:items};
   renderSheet();
  },
  'fsort':function(el){ui.fsort=el.dataset.v;render();},
@@ -1292,7 +1294,7 @@ var actions={
   var tk=0,tp=0;s.items.forEach(function(i){tk+=i.kcal;tp+=i.protein;});
   var rec=s.id?db.recipes.find(function(x){return x.id===s.id;}):null;
   if(!rec){rec={id:uid()};db.recipes.push(rec);}
-  rec.name=name;rec.servings=sv;rec.portionG=pw;rec.totalG=pw*sv;rec.items=s.items.map(function(i){return Object.assign({},i);});
+  rec.name=name;rec.notes=String(s.notes||'').trim();rec.servings=sv;rec.portionG=pw;rec.totalG=pw*sv;rec.items=s.items.map(function(i){return Object.assign({},i);});
   var food=db.foods.find(function(x){return x.id===rec.foodId;});
   if(!food){food={id:uid()};db.foods.push(food);rec.foodId=food.id;}
   food.name=name;food.recipeId=rec.id;
