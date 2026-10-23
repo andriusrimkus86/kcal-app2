@@ -542,7 +542,7 @@ function viewGraph(){
  '<div class="seg" style="margin-bottom:6px">'+rg(30,'30 days')+rg(90,'90 days')+rg(365,'1 year')+rg(0,'All')+'</div>'+body+(w.length?progressHtml(w):'');
 }
 function renderMenu(){
- $('#menu-root').innerHTML=ui.menu?'<div class="mscrim" data-act="menu-close"></div><div class="menu" role="menu"><button role="menuitem" data-act="menu-recipes">'+svg('recipe')+'Recipes</button><button role="menuitem" data-act="menu-ideas">'+svg('idea')+'Recipe ideas</button><button role="menuitem" data-act="menu-week">'+svg('calendar')+'Weekly summary</button><button role="menuitem" data-act="menu-graph">'+svg('chart')+'Weight graph</button><button role="menuitem" data-act="menu-settings">'+svg('sliders')+'Goals and settings</button></div>':'';
+ $('#menu-root').innerHTML=ui.menu?'<div class="mscrim" data-act="menu-close"></div><div class="menu" role="menu"><button role="menuitem" data-act="menu-recipes">'+svg('recipe')+'Recipes</button><button role="menuitem" data-act="menu-ideas">'+svg('idea')+'Recipe ideas</button><button role="menuitem" data-act="menu-week">'+svg('calendar')+'Weekly summary</button><button role="menuitem" data-act="menu-month">'+svg('calendar')+'Monthly summary</button><button role="menuitem" data-act="menu-graph">'+svg('chart')+'Weight graph</button><button role="menuitem" data-act="menu-settings">'+svg('sliders')+'Goals and settings</button></div>':'';
 }
 var IDEA_EXCL=/cukrus|vynas|degtin|ledai|vanduo|\+100|random|sultinio|miltai|kotlet|sriub|trosk|desr|sasl|virtin|plovas|kokteil|pudding|drink|kava|^salotos su|^saltibarsciai|^cili( \(lidl\))?$|kopustai su|kose$|dziuvesel|^burokeliai saltibarsc|konservuoti kedainiu/;
 var IDEA_CATS=[
@@ -753,6 +753,34 @@ function viewWeekly(){
  '<ul class="list" style="margin-top:14px">'+rows+'</ul>'+
  '<p class="hint">Deficit is your maintenance calories minus what you ate, added up over the days you logged. Days with nothing logged are skipped, so log every meal for an honest number. About 7,700 kcal of deficit is roughly 1 kg of body fat. A tick marks a day that met your goals. Weight change compares the last weight this week with the last one before the week.</p>';
 }
+function monthKey(s){return s.slice(0,7);}
+function addMonths(k,n){var p=k.split('-').map(Number),d=new Date(p[0],p[1]-1+n,1);return d.getFullYear()+'-'+pad(d.getMonth()+1);}
+function viewMonthly(){
+ var mk=ui.mo||monthKey(todayStr()),p=mk.split('-').map(Number),y=p[0],m=p[1]-1,nd=new Date(y,m+1,0).getDate();
+ var st=mk+'-01',en=mk+'-'+pad(nd),tot=totalsByDate(),g=db.goals,mt=g.maint>0?g.maint:3200;
+ var sk=0,sp=0,n=0,hits=0,defi=0,i,wk={},order=[];
+ for(i=1;i<=nd;i++){
+  var ds=mk+'-'+pad(i),t=tot[ds],ws0=weekStart(ds);
+  if(!wk[ws0]){wk[ws0]={s:ds,e:ds,n:0,k:0,d:0};order.push(ws0);}
+  wk[ws0].e=ds;
+  if(t&&t.n){sk+=t.kcal;sp+=t.protein;n++;defi+=mt-t.kcal;wk[ws0].n++;wk[ws0].k+=t.kcal;wk[ws0].d+=mt-t.kcal;}
+  if(goalHit(t))hits++;
+ }
+ var ws=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;});
+ var inW=ws.filter(function(w){return w.date>=st&&w.date<=en;}),before=ws.filter(function(w){return w.date<st;});
+ var ref=before.length?before[before.length-1]:(inW.length>1?inW[0]:null),lastW=inW.length?inW[inW.length-1]:null;
+ var ch=(lastW&&ref)?lastW.kg-ref.kg:null;
+ var sign=function(d){return (d>0?'+':d<0?'\u2212':'')+fmtP(Math.abs(d))+' kg';};
+ var isNow=mk===monthKey(todayStr());
+ var label=capFirst(new Date(y,m,1).toLocaleDateString(LOC(),{month:'long',year:'numeric'}));
+ var rows=order.map(function(k){var w=wk[k];return '<li><div class="row" style="cursor:default"><span class="main"><b>'+w.s.slice(8)+' \u2013 '+w.e.slice(8)+'</b><small>'+(w.n?w.n+(w.n===1?' day logged':' days logged'):'Nothing logged')+'</small></span><span class="vals">'+(w.n?'<b class="k">'+fmtK(w.k/w.n)+' kcal avg</b><small>'+(w.d>=0?'deficit ':'surplus ')+fmtK(Math.abs(w.d))+'</small>':'')+'</span></div></li>';}).join('');
+ return '<header class="top"><div><h1>Monthly summary</h1><p class="sub">'+label+'</p></div><div class="tools"><button class="icon" data-act="month-prev" aria-label="Previous month">'+svg('left')+'</button><button class="icon" data-act="month-next" aria-label="Next month"'+(isNow?' disabled style="opacity:.4"':'')+'>'+svg('right')+'</button></div></header>'+
+ '<dl class="stats"><div><dt>Days logged</dt><dd>'+n+' of '+nd+'</dd></div><div><dt>Avg calories</dt><dd>'+(n?fmtK(sk/n):'-')+'</dd></div><div><dt>Avg protein</dt><dd>'+(n?fmtP(sp/n)+' g':'-')+'</dd></div></dl>'+
+ '<dl class="stats" style="margin-top:0"><div><dt>Goal days</dt><dd>'+hits+'</dd></div><div><dt>Weight change</dt><dd>'+(ch===null?'-':sign(ch))+'</dd></div><div><dt>Latest weight</dt><dd>'+(lastW?fmtP(lastW.kg)+' kg':'-')+'</dd></div></dl>'+
+ '<dl class="stats" style="margin-top:0"><div><dt>'+(defi>=0?'Monthly deficit':'Monthly surplus')+'</dt><dd>'+(n?fmtK(Math.abs(defi))+' kcal':'-')+'</dd></div><div><dt>Per logged day</dt><dd>'+(n?fmtK(Math.abs(defi)/n):'-')+'</dd></div><div><dt>Est. fat change</dt><dd>'+(n?(defi>=0?'\u2212':'+')+fmtP(Math.abs(defi)/7700)+' kg':'-')+'</dd></div></dl>'+
+ '<h3 class="grp">Weeks</h3><ul class="list">'+rows+'</ul>'+
+ '<p class="hint">Deficit is your maintenance calories ('+fmtK(mt)+') minus what you ate, added up over the days you logged. Days with nothing logged are skipped. About 7,700 kcal of deficit is roughly 1 kg of body fat. Weight change compares the last weight this month with the last one before the month.</p>';
+}
 function viewWeight(){
  var w=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;});
  var last=w[w.length-1],first=w[0],sign=function(d){return (d>0?'+':d<0?'\u2212':'')+fmtP(Math.abs(d))+' kg';};
@@ -845,7 +873,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 25</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 26</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -890,7 +918,7 @@ function syncFoodForm(){
 
 /* ---------- render ---------- */
 function render(){
- var views={today:viewToday,calendar:viewCal,foods:viewFoods,weight:viewWeight,graph:viewGraph,recipes:viewRecipes,ideas:viewIdeas,week:viewWeekly};
+ var views={today:viewToday,calendar:viewCal,foods:viewFoods,weight:viewWeight,graph:viewGraph,recipes:viewRecipes,ideas:viewIdeas,week:viewWeekly,month:viewMonthly};
  $('#main').innerHTML=views[ui.tab]();
  var hd=$('#main .top');
  if(hd){var tl=hd.querySelector('.tools');if(!tl){tl=document.createElement('div');tl.className='tools';hd.appendChild(tl);}tl.insertAdjacentHTML('beforeend','<button class="icon" data-act="menu" aria-label="More pages" aria-haspopup="menu">'+svg('menu')+'</button>');}
@@ -1050,7 +1078,7 @@ var LT={
 'Name':'Pavadinimas','Calories':'Kalorijos','Save food':'Išsaugoti maistą','Delete food':'Ištrinti maistą','By gram':'Pagal gramus','By portion':'Pagal porcijas',
 'Amount eaten':'Suvalgytas kiekis','Portions eaten':'Suvalgytos porcijos','Choose another food':'Pasirinkti kitą maistą','Save changes':'Išsaugoti pakeitimus',
 'Remove entry':'Pašalinti įrašą','Add again':'Pridėti dar kartą','Copy to today':'Kopijuoti į šiandien','Add to recipe':'Pridėti į receptą',
-'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
+'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Monthly summary':'Mėnesio santrauka','Monthly deficit':'Mėnesio deficitas','Monthly surplus':'Mėnesio perteklius','Est. fat change':'Apytiksl. riebalų pokytis','Weeks':'Savaitės','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
 'Or type the barcode number':'Arba įveskite kodo numerį','New recipe':'Naujas receptas','Edit recipe':'Redaguoti receptą','Save recipe':'Išsaugoti receptą',
 'Delete recipe':'Ištrinti receptą','Makes':'Išeina','Portion weight':'Porcijos svoris','Add ingredient':'Pridėti ingredientą','Recipe':'Receptas',
 'Date':'Data','Save':'Išsaugoti','All weight entries':'Visi svorio įrašai','Latest':'Paskutinis','Change':'Pokytis','Average':'Vidurkis',
@@ -1148,6 +1176,9 @@ var actions={
   ui.sheet={type:'entry',step:'pick',purpose:'ingredient',recipe:ui.sheet,date:ui.date,food:null,qty:'',entryId:null};renderSheet();
  },
  'menu-week':function(){ui.menu=false;renderMenu();ui.tab='week';ui.wk=weekStart(todayStr());render();window.scrollTo(0,0);},
+ 'menu-month':function(){ui.menu=false;renderMenu();ui.tab='month';ui.mo=monthKey(todayStr());render();window.scrollTo(0,0);},
+ 'month-prev':function(){ui.mo=addMonths(ui.mo,-1);render();},
+ 'month-next':function(){var n=addMonths(ui.mo,1);if(n<=monthKey(todayStr())){ui.mo=n;render();}},
  'week-prev':function(){ui.wk=addDays(ui.wk,-7);render();},
  'week-next':function(){var n=addDays(ui.wk,7);if(n<=weekStart(todayStr())){ui.wk=n;render();}},
  'menu-ideas':function(){ui.menu=false;renderMenu();ui.tab='ideas';render();window.scrollTo(0,0);},
