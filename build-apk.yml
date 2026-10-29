@@ -28,6 +28,335 @@ jobs:
           npx cap add android
           npx cap sync android
 
+      - name: Add camera and notification permissions
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <application#' "$M"
+          sed -i 's#<application\([^>]*\)>#<application\1>\n        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />#' "$M"
+          grep -n "uses-permission\|DEPENDENCIES" "$M"
+
+      - name: Add home-screen widget
+        run: |
+          set -e
+          SRC=android/app/src/main
+          JAVA=$SRC/java/com/kcallog/app
+          mkdir -p "$JAVA" $SRC/res/layout $SRC/res/xml $SRC/res/drawable $SRC/res/values
+          cat > "$JAVA/WidgetBridgePlugin.java" <<'EOF_FILE'
+          package com.kcallog.app;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+
+          @CapacitorPlugin(name = "WidgetBridge")
+          public class WidgetBridgePlugin extends Plugin {
+              @PluginMethod
+              public void update(PluginCall call) {
+                  Context ctx = getContext();
+                  SharedPreferences.Editor e = ctx.getSharedPreferences("kcal_widget", Context.MODE_PRIVATE).edit();
+                  String[] keys = {"date", "kcal", "protein", "goalKcal", "goalProtein", "weight", "weightDate"};
+                  for (String k : keys) {
+                      String v = call.getString(k, "");
+                      e.putString(k, v == null ? "" : v);
+                  }
+                  e.apply();
+                  KcalWidgetProvider.refresh(ctx);
+                  call.resolve();
+              }
+          }
+          EOF_FILE
+          cat > "$JAVA/KcalWidgetProvider.java" <<'EOF_FILE'
+          package com.kcallog.app;
+
+          import android.app.PendingIntent;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.ComponentName;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.widget.RemoteViews;
+
+          import java.text.SimpleDateFormat;
+          import java.util.Date;
+          import java.util.Locale;
+
+          public class KcalWidgetProvider extends AppWidgetProvider {
+
+              @Override
+              public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
+                  for (int id : ids) {
+                      manager.updateAppWidget(id, build(context));
+                  }
+              }
+
+              static void refresh(Context context) {
+                  AppWidgetManager manager = AppWidgetManager.getInstance(context);
+                  int[] ids = manager.getAppWidgetIds(new ComponentName(context, KcalWidgetProvider.class));
+                  for (int id : ids) {
+                      manager.updateAppWidget(id, build(context));
+                  }
+              }
+
+              private static double num(String s) {
+                  try {
+                      return Double.parseDouble(s);
+                  } catch (Exception ex) {
+                      return 0;
+                  }
+              }
+
+              private static String fmt(double v) {
+                  return String.format(Locale.US, "%,d", Math.round(v)).replace(',', ' ');
+              }
+
+              static RemoteViews build(Context context) {
+                  SharedPreferences p = context.getSharedPreferences("kcal_widget", Context.MODE_PRIVATE);
+                  String today = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+                  boolean fresh = today.equals(p.getString("date", ""));
+                  double eatenK = fresh ? num(p.getString("kcal", "0")) : 0;
+                  double eatenP = fresh ? num(p.getString("protein", "0")) : 0;
+                  double goalK = num(p.getString("goalKcal", "0"));
+                  double goalP = num(p.getString("goalProtein", "0"));
+                  String weight = p.getString("weight", "");
+
+                  RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.widget_kcal);
+
+                  double leftK = goalK - eatenK;
+                  if (goalK <= 0) {
+                      v.setTextViewText(R.id.w_kcal, fmt(eatenK));
+                      v.setTextViewText(R.id.w_kcal_label, "kcal eaten today");
+                  } else if (leftK >= 0) {
+                      v.setTextViewText(R.id.w_kcal, fmt(leftK));
+                      v.setTextViewText(R.id.w_kcal_label, "kcal left");
+                  } else {
+                      v.setTextViewText(R.id.w_kcal, fmt(-leftK));
+                      v.setTextViewText(R.id.w_kcal_label, "kcal over");
+                  }
+
+                  double leftP = goalP - eatenP;
+                  if (goalP <= 0) {
+                      v.setTextViewText(R.id.w_protein, fmt(eatenP) + " g");
+                      v.setTextViewText(R.id.w_protein_label, "protein eaten");
+                  } else if (leftP >= 0) {
+                      v.setTextViewText(R.id.w_protein, fmt(leftP) + " g");
+                      v.setTextViewText(R.id.w_protein_label, "protein left");
+                  } else {
+                      v.setTextViewText(R.id.w_protein, "+" + fmt(-leftP) + " g");
+                      v.setTextViewText(R.id.w_protein_label, "protein over goal");
+                  }
+
+                  if (weight != null && weight.length() > 0) {
+                      v.setTextViewText(R.id.w_weight, weight + " kg");
+                  } else {
+                      v.setTextViewText(R.id.w_weight, "-");
+                  }
+
+                  Intent open = new Intent(context, MainActivity.class);
+                  open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                  PendingIntent pi = PendingIntent.getActivity(context, 0, open,
+                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                  v.setOnClickPendingIntent(R.id.w_root, pi);
+                  return v;
+              }
+          }
+          EOF_FILE
+          cat > "$JAVA/MainActivity.java" <<'EOF_FILE'
+          package com.kcallog.app;
+
+          import android.os.Bundle;
+
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(WidgetBridgePlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          EOF_FILE
+          cat > $SRC/res/layout/widget_kcal.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/w_root"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="horizontal"
+              android:padding="12dp"
+              android:gravity="center_vertical"
+              android:background="@drawable/widget_bg">
+
+              <LinearLayout
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:orientation="vertical">
+                  <TextView
+                      android:id="@+id/w_kcal"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="0"
+                      android:textColor="#EBAA4B"
+                      android:textSize="30sp"
+                      android:textStyle="bold" />
+                  <TextView
+                      android:id="@+id/w_kcal_label"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="kcal left"
+                      android:textColor="#94A3AE"
+                      android:textSize="12sp" />
+              </LinearLayout>
+
+              <LinearLayout
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:orientation="vertical">
+                  <TextView
+                      android:id="@+id/w_protein"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="0 g"
+                      android:textColor="#7CCBE0"
+                      android:textSize="24sp"
+                      android:textStyle="bold" />
+                  <TextView
+                      android:id="@+id/w_protein_label"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="protein left"
+                      android:textColor="#94A3AE"
+                      android:textSize="12sp" />
+              </LinearLayout>
+
+              <LinearLayout
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:orientation="vertical">
+                  <TextView
+                      android:id="@+id/w_weight"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="-"
+                      android:textColor="#E8EEF1"
+                      android:textSize="20sp"
+                      android:textStyle="bold" />
+                  <TextView
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="weight"
+                      android:textColor="#94A3AE"
+                      android:textSize="12sp" />
+              </LinearLayout>
+          </LinearLayout>
+          EOF_FILE
+          cat > $SRC/res/drawable/widget_bg.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="rectangle">
+              <solid android:color="#E61B2228" />
+              <corners android:radius="18dp" />
+          </shape>
+          EOF_FILE
+          cat > $SRC/res/xml/kcal_widget_info.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+              android:minWidth="250dp"
+              android:minHeight="70dp"
+              android:updatePeriodMillis="1800000"
+              android:initialLayout="@layout/widget_kcal"
+              android:resizeMode="horizontal"
+              android:widgetCategory="home_screen"
+              android:description="@string/widget_description" />
+          EOF_FILE
+          cat > $SRC/res/values/widget_strings.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="widget_description">Calories and protein left today, and your weight</string>
+          </resources>
+          EOF_FILE
+          cat > /tmp/receiver.xml <<'EOF_FILE'
+                  <receiver android:name=".KcalWidgetProvider" android:exported="false">
+                      <intent-filter>
+                          <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                      </intent-filter>
+                      <meta-data android:name="android.appwidget.provider" android:resource="@xml/kcal_widget_info" />
+                  </receiver>
+          EOF_FILE
+          python3 - <<'EOF_PY'
+          m = 'android/app/src/main/AndroidManifest.xml'
+          s = open(m).read()
+          r = open('/tmp/receiver.xml').read()
+          assert s.count('</application>') == 1
+          s = s.replace('</application>', r + '    </application>')
+          open(m, 'w').write(s)
+          EOF_PY
+          grep -n "receiver\|DEPENDENCIES" "$SRC/AndroidManifest.xml"
+          ls "$JAVA"
+
+      - name: Add app icon
+        run: |
+          set -e
+          SRC=android/app/src/main
+          mkdir -p $SRC/res/drawable $SRC/res/values $SRC/res/mipmap-anydpi-v26
+          cat > $SRC/res/drawable/kcal_icon_fg.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:pathData="M54,54m-28,0a28,28 0 1,1 56,0a28,28 0 1,1 -56,0"
+                  android:strokeColor="#3A4752"
+                  android:strokeWidth="7"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M54,26A28,28 0 1,1 26,54"
+                  android:strokeColor="#EBAA4B"
+                  android:strokeWidth="7"
+                  android:strokeLineCap="round"
+                  android:fillColor="#00000000" />
+              <path
+                  android:pathData="M40,48L48,57L55,50L68,62"
+                  android:strokeColor="#7CCBE0"
+                  android:strokeWidth="4.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:fillColor="#00000000" />
+          </vector>
+          EOF_FILE
+          cat > $SRC/res/values/kcal_icon_colors.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="kcal_icon_bg">#12171B</color>
+          </resources>
+          EOF_FILE
+          cat > $SRC/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/kcal_icon_bg" />
+              <foreground android:drawable="@drawable/kcal_icon_fg" />
+              <monochrome android:drawable="@drawable/kcal_icon_fg" />
+          </adaptive-icon>
+          EOF_FILE
+          cat > $SRC/res/mipmap-anydpi-v26/ic_launcher_round.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/kcal_icon_bg" />
+              <foreground android:drawable="@drawable/kcal_icon_fg" />
+              <monochrome android:drawable="@drawable/kcal_icon_fg" />
+          </adaptive-icon>
+          EOF_FILE
+          ls $SRC/res/mipmap-anydpi-v26
+
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug
