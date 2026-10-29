@@ -154,11 +154,26 @@ h2{font:700 22px/1.15 var(--font-d);letter-spacing:-.01em;margin:0}
 /* weight */
 .wform{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end;margin-bottom:6px}
 .wform .btn{grid-column:1/-1}
-.chart{width:100%;height:auto;margin:14px 0 8px;display:block}
-.chart path{fill:none;stroke:var(--amber);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
-.chart circle{fill:var(--amber)}
+.chart{width:100%;height:auto;margin:14px 0 4px;display:block;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.chart path{fill:none;stroke-linejoin:round;stroke-linecap:round}
+.chart .ln{stroke:var(--amber);stroke-width:2.5}
+.chart .area{fill:url(#cg);stroke:none}
+.chart .trend{stroke:var(--blue);stroke-width:2;stroke-dasharray:5 4}
+.chart .pt{fill:var(--bg);stroke:var(--amber);stroke-width:2}
+.chart .last{fill:var(--amber);stroke:var(--bg);stroke-width:2}
+.chart .lastv{fill:var(--text);font:700 11px var(--font-d)}
+.chart .cx{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
+.chart .cc{fill:var(--amber);stroke:var(--text);stroke-width:2}
+.chart .goal{stroke:var(--ok);stroke-width:1.5;stroke-dasharray:6 4}
+.chart .goalt{fill:var(--ok);font-size:10px;font-weight:700}
 .chart .grid{stroke:var(--line);stroke-width:1}
+.chart .tick{stroke:var(--muted);stroke-width:1}
 .chart .ax{fill:var(--muted);font-size:10px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin:0 2px 6px}
+.legend i{display:inline-block;width:16px;height:0;border-top:3px solid var(--amber);vertical-align:middle;margin-right:6px}
+.legend .l2{border-top:2px dashed var(--blue)}.legend .l3{border-top:2px dashed var(--ok)}
+.ctip{min-height:44px;background:var(--surface);border-radius:12px;padding:10px 14px;font-size:14px;color:var(--muted);display:flex;flex-wrap:wrap;align-items:center;gap:2px 0}
+.ctip b{color:var(--text)}.ctip b.k{color:var(--amber-text)}
 .delta{color:var(--muted);font-size:13px}
 .x{border:0;background:none;color:var(--muted);width:40px;height:40px;display:grid;place-items:center;border-radius:10px;flex:none}
 .wrow{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 16px;min-height:56px}
@@ -469,24 +484,58 @@ function viewFoods(){
  '<div class="chips" style="margin:0 0 10px">'+sc('az','A-Z')+sc('fav','Favourites')+sc('used','Most eaten')+'</div>'+
  '<div id="foods-list">'+foodsListHtml(ui.fq,'food-edit')+'</div>';
 }
+function niceStep(r,n){var raw=r/n,pw=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/pw;return (f<=1?1:f<=2?2:f<=5?5:10)*pw;}
+var chartGeo=null;
 function chart(pts,tall){
  pts=pts.slice(-400);
- var W=340,H=tall?240:160,L=38,R=12,T=14,B=26;
- var ks=pts.map(function(p){return p.kg;}),mx=Math.max.apply(null,ks),mn=Math.min.apply(null,ks),lo=mn,hi=mx;
+ var W=340,H=tall?270:170,L=42,R=16,T=18,B=30;
+ var ks=pts.map(function(p){return p.kg;}),lo=Math.min.apply(null,ks),hi=Math.max.apply(null,ks);
+ var goal=num(db.goals.goalW);if(!(goal>0))goal=0;
+ if(goal){lo=Math.min(lo,goal);hi=Math.max(hi,goal);}
  if(hi-lo<1){var c=(hi+lo)/2;lo=c-.5;hi=c+.5;}
- var pd=(hi-lo)*.15;lo-=pd;hi+=pd;
- var ts=pts.map(function(p){return parseYmd(p.date).getTime();}),t0=ts[0],t1=ts[ts.length-1];
- var X=function(i){return (pts.length===1||t1===t0)?(L+W-R)/2:L+(ts[i]-t0)/(t1-t0)*(W-L-R);};
+ var pd=(hi-lo)*.12;lo-=pd;hi+=pd;
+ var ts=pts.map(function(p){return parseYmd(p.date).getTime();}),t0=ts[0],t1=ts[ts.length-1],one=(pts.length===1||t1===t0);
+ var X=function(i){return one?(L+W-R)/2:L+(ts[i]-t0)/(t1-t0)*(W-L-R);};
  var Y=function(k){return T+(hi-k)/(hi-lo)*(H-T-B);};
- var path=pts.map(function(p,i){return (i?'L':'M')+X(i).toFixed(1)+' '+Y(p.kg).toFixed(1);}).join(' ');
- var dots=pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.kg).toFixed(1)+'" r="3.2"/>';}).join('');
- var fd=function(s){return s;};
- var grid='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(mx).toFixed(1)+'" y2="'+Y(mx).toFixed(1)+'"/>'+
-  '<text class="ax" x="'+(L-6)+'" y="'+(Y(mx)+3).toFixed(1)+'" text-anchor="end">'+fmtP(mx)+'</text>';
- if(mn!==mx)grid+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(mn).toFixed(1)+'" y2="'+Y(mn).toFixed(1)+'"/><text class="ax" x="'+(L-6)+'" y="'+(Y(mn)+3).toFixed(1)+'" text-anchor="end">'+fmtP(mn)+'</text>';
- var xl=pts.length===1?'<text class="ax" x="'+((L+W-R)/2)+'" y="'+(H-6)+'" text-anchor="middle">'+fd(pts[0].date)+'</text>':
-  '<text class="ax" x="'+L+'" y="'+(H-6)+'">'+fd(pts[0].date)+'</text><text class="ax" x="'+(W-R)+'" y="'+(H-6)+'" text-anchor="end">'+fd(pts[pts.length-1].date)+'</text>';
- return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Weight over time in kilograms">'+grid+'<path d="'+path+'"/>'+dots+xl+'</svg>';
+ var step=niceStep(hi-lo,4),grid='',v;
+ for(v=Math.ceil(lo/step)*step;v<=hi;v+=step){var yy=Y(v).toFixed(1);grid+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'"/><text class="ax" x="'+(L-6)+'" y="'+(+yy+3)+'" text-anchor="end">'+fmtP(Math.round(v*100)/100)+'</text>';}
+ var line=pts.map(function(p,i){return (i?'L':'M')+X(i).toFixed(1)+' '+Y(p.kg).toFixed(1);}).join(' ');
+ var area=pts.length>1?line+' L'+X(pts.length-1).toFixed(1)+' '+(H-B)+' L'+X(0).toFixed(1)+' '+(H-B)+' Z':'';
+ var ma='';
+ if(pts.length>=5){
+  var wk=7*864e5;
+  ma=pts.map(function(p,i){var sum=0,n=0,j;for(j=i;j>=0&&ts[j]>ts[i]-wk;j--){sum+=ks[j];n++;}return (i?'L':'M')+X(i).toFixed(1)+' '+Y(sum/n).toFixed(1);}).join(' ');
+ }
+ var dots='';
+ if(pts.length<=45)dots=pts.map(function(p,i){return '<circle class="pt" cx="'+X(i).toFixed(1)+'" cy="'+Y(p.kg).toFixed(1)+'" r="3"/>';}).join('');
+ var li=pts.length-1,lx=X(li),ly=Y(pts[li].kg);
+ var lab=pts.length>0?'<circle class="last" cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="5"/><text class="lastv" x="'+Math.min(lx,W-R-14).toFixed(1)+'" y="'+(ly-10).toFixed(1)+'" text-anchor="'+(lx>W-R-30?'end':'middle')+'">'+fmtP(pts[li].kg)+'</text>':'';
+ var gl='';
+ if(goal){var gy=Y(goal).toFixed(1);gl='<line class="goal" x1="'+L+'" x2="'+(W-R)+'" y1="'+gy+'" y2="'+gy+'"/><text class="goalt" x="'+(W-R)+'" y="'+(+gy-4)+'" text-anchor="end">Goal '+fmtP(goal)+'</text>';}
+ var xl='';
+ if(one)xl='<text class="ax" x="'+((L+W-R)/2)+'" y="'+(H-8)+'" text-anchor="middle">'+pts[0].date+'</text>';
+ else{
+  xl='<text class="ax" x="'+L+'" y="'+(H-8)+'">'+pts[0].date+'</text><text class="ax" x="'+(W-R)+'" y="'+(H-8)+'" text-anchor="end">'+pts[li].date+'</text>';
+  var k;for(k=1;k<3;k++){var tt=t0+(t1-t0)*k/3,dd=new Date(tt),xx=(L+(W-L-R)*k/3).toFixed(1);xl+='<line class="tick" x1="'+xx+'" x2="'+xx+'" y1="'+(H-B)+'" y2="'+(H-B+4)+'"/><text class="ax" x="'+xx+'" y="'+(H-8)+'" text-anchor="middle">'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate())+'</text>';}
+ }
+ chartGeo={pts:pts,W:W,H:H,L:L,R:R,T:T,B:B,xs:pts.map(function(p,i){return X(i);}),ys:pts.map(function(p){return Y(p.kg);})};
+ return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Weight over time in kilograms"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--amber);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--amber);stop-opacity:0"/></linearGradient></defs>'+
+  grid+gl+(area?'<path class="area" d="'+area+'"/>':'')+(ma?'<path class="trend" d="'+ma+'"/>':'')+'<path class="ln" d="'+line+'"/>'+dots+lab+
+  '<line id="chx" class="cx" x1="0" x2="0" y1="'+T+'" y2="'+(H-B)+'" style="display:none"/><circle id="chc" class="cc" r="6" style="display:none"/>'+xl+'</svg>'+
+  '<div class="legend"><span><i class="l1"></i>Weight</span>'+(ma?'<span><i class="l2"></i>7-day average</span>':'')+(goal?'<span><i class="l3"></i>Goal</span>':'')+'</div>'+
+  '<div id="ctip" class="ctip">Tap the graph to see a day</div>';
+}
+function chartPick(e){
+ var g=chartGeo,svg=e.target.closest&&e.target.closest('svg.chart');
+ if(!g||!svg)return;
+ var r=svg.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*g.W,bi=0,bd=1e9,i;
+ for(i=0;i<g.xs.length;i++){var d=Math.abs(g.xs[i]-x);if(d<bd){bd=d;bi=i;}}
+ var p=g.pts[bi],prev=bi>0?g.pts[bi-1]:null;
+ var cx=$('#chx'),cc=$('#chc'),tip=$('#ctip');
+ if(cx){cx.setAttribute('x1',g.xs[bi]);cx.setAttribute('x2',g.xs[bi]);cx.style.display='';}
+ if(cc){cc.setAttribute('cx',g.xs[bi]);cc.setAttribute('cy',g.ys[bi]);cc.style.display='';}
+ var bm=bmiOf(p.kg),dl=prev?p.kg-prev.kg:null;
+ if(tip)tip.innerHTML='<b>'+p.date+'</b> &nbsp; <b class="k">'+fmtP(p.kg)+' kg</b>'+(dl!==null?' &nbsp; <span class="muted">'+(dl>0?'+':dl<0?'−':'')+fmtP(Math.abs(dl))+' kg vs previous</span>':'')+(bm>0?' '+bmiChip(p.kg):'');
 }
 function heightCm(){var h=num(db.goals.height);return h>=100&&h<=250?h:0;}
 function bmiOf(kg){var h=heightCm();return h?kg/Math.pow(h/100,2):0;}
@@ -873,7 +922,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 26</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 27</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -1078,7 +1127,7 @@ var LT={
 'Name':'Pavadinimas','Calories':'Kalorijos','Save food':'Išsaugoti maistą','Delete food':'Ištrinti maistą','By gram':'Pagal gramus','By portion':'Pagal porcijas',
 'Amount eaten':'Suvalgytas kiekis','Portions eaten':'Suvalgytos porcijos','Choose another food':'Pasirinkti kitą maistą','Save changes':'Išsaugoti pakeitimus',
 'Remove entry':'Pašalinti įrašą','Add again':'Pridėti dar kartą','Copy to today':'Kopijuoti į šiandien','Add to recipe':'Pridėti į receptą',
-'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Monthly summary':'Mėnesio santrauka','Monthly deficit':'Mėnesio deficitas','Monthly surplus':'Mėnesio perteklius','Est. fat change':'Apytiksl. riebalų pokytis','Weeks':'Savaitės','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
+'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Monthly summary':'Mėnesio santrauka','Monthly deficit':'Mėnesio deficitas','Monthly surplus':'Mėnesio perteklius','Est. fat change':'Apytiksl. riebalų pokytis','Weeks':'Savaitės','Weight':'Svoris','7-day average':'7 dienų vidurkis','Goal':'Tikslas','Tap the graph to see a day':'Palieskite grafiką, kad pamatytumėte dieną','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
 'Or type the barcode number':'Arba įveskite kodo numerį','New recipe':'Naujas receptas','Edit recipe':'Redaguoti receptą','Save recipe':'Išsaugoti receptą',
 'Delete recipe':'Ištrinti receptą','Makes':'Išeina','Portion weight':'Porcijos svoris','Add ingredient':'Pridėti ingredientą','Recipe':'Receptas',
 'Date':'Data','Save':'Išsaugoti','All weight entries':'Visi svorio įrašai','Latest':'Paskutinis','Change':'Pokytis','Average':'Vidurkis',
@@ -1432,6 +1481,8 @@ var actions={
  'undo':function(){if(lastUndo){lastUndo();lastUndo=null;}$('#toast').classList.remove('show');}
 };
 
+document.addEventListener('pointerdown',chartPick);
+document.addEventListener('pointermove',function(e){if(e.pressure>0||e.buttons)chartPick(e);});
 document.addEventListener('click',function(e){
  var tab=e.target.closest('[data-tab]');
  if(tab){ui.tab=tab.dataset.tab;ui.sheet=null;renderSheet();render();window.scrollTo(0,0);return;}
