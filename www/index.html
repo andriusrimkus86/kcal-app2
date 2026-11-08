@@ -907,10 +907,55 @@ function sheetQty(){
  '<button class="btn primary wide" data-act="entry-save">'+(s.entryId?'Save changes':s.purpose==='ingredient'?'Add to recipe':'Add to '+dl)+'</button>'+
  (s.entryId?'<button class="btn ghost wide" data-act="entry-copy">'+svg('copy',18)+(s.date===todayStr()?'Add again':'Copy to today')+'</button><button class="btn danger wide" data-act="entry-remove">Remove entry</button>':'<button class="btn ghost wide" data-act="entry-back">Choose another food</button>');
 }
+var FOOD_DB='Ananasas|pineapple;50;0.5;150\nObuolys|apple;52;0.3;180\nKriaušė|pear;57;0.4;180\nBananas|banana;89;1.1;120\nApelsinas|orange;47;0.9;150\nMandarinas|klementinas|tangerine|clementine;53;0.8;80\nCitrina|lemon;29;1.1;60\nGreipfrutas|grapefruit;42;0.8;230\nVynuogės|grapes;69;0.7;100\nBraškės|strawberry|strawberries;32;0.7;150\nMėlynės|blueberry|blueberries;57;0.7;100\nAvietės|raspberry|raspberries;52;1.2;100\nGervuogės|blackberry;43;1.4;100\nVyšnios|cherry|cherries;63;1.1;100\nSlyva|plum;46;0.7;70\nPersikas|peach;39;0.9;150\nNektarinas|nectarine;44;1.1;140\nAbrikosas|apricot;48;1.4;40\nArbūzas|watermelon;30;0.6;300\nMelionas|melon|cantaloupe;34;0.8;200\nKivis|kiwi;61;1.1;75\nMangas|mango;60;0.8;200\nAvokadas|avocado;160;2;150\nGranatas|pomegranate;83;1.7;200\nFigos|fig;74;0.8;50\nDatulės|dates;282;2.5;24\nRazinos|raisins;299;3.1;30\nDžiovinti abrikosai|dried apricots;241;3.4;30\nPomidoras|tomato;18;0.9;120\nAgurkas|agurkas|cucumber;15;0.7;150\nPaprika|bell pepper|pepper;27;1;150\nMorka|morkos|carrot;41;0.9;80\nBulvės|bulvė|potato;77;2;150\nBatatas|sweet potato;86;1.6;150\nSvogūnas|onion;40;1.1;100\nČesnakas|garlic;149;6.4;5\nBrokolis|broccoli;34;2.8;150\nŽiedinis kopūstas|cauliflower;25;1.9;150\nKopūstas|cabbage;25;1.3;100\nCukinija|zucchini|courgette;17;1.2;200\nBaklažanas|eggplant|aubergine;25;1;200\nŠpinatai|spinach;23;2.9;50\nSalotos|lettuce;15;1.4;50\nBurokėlis|beetroot|beet;43;1.6;100\nRidikėlis|radish;16;0.7;10\nŠampinjonai|grybai|mushroom;22;3.1;100\nKukurūzai|sweet corn|corn;86;3.3;100\nŽirneliai|green peas|peas;81;5.4;80\nPupelės virtos|beans cooked|kidney beans;127;8.7;100\nLęšiai virti|lentils cooked|lentils;116;9;100\nAvinžirniai virti|chickpeas cooked|chickpeas;164;8.9;100\nMoliūgas|pumpkin;26;1;200\nSalierai|celery;16;0.7;40\nŠparagai|asparagus;20;2.2;100\nVištienos krūtinėlė žalia|chicken breast raw|vistienos krutinele;120;22.5;150\nVištienos krūtinėlė virta|vištienos krūtinėlė kepta|chicken breast cooked;165;31;150\nVištienos šlaunelė be odos virta|chicken thigh;179;25;120\nVištienos faršas|chicken mince|ground chicken;143;17.4;100\nKalakutienos krūtinėlė žalia|turkey breast;114;24;150\nJautienos faršas 10%|jautiena|beef mince|ground beef;176;20;100\nJautienos faršas 20%|beef mince 20;254;17.2;100\nKiaulienos nugarinė|kiauliena|pork loin|pork;143;21;150\nKiaulienos faršas|pork mince|ground pork;263;17;100\nŠoninė|bacon;417;12;20\nDešrelės|sausage|sausages;290;12;50\nKumpis|ham;145;21;30\nLašiša|salmon;208;20.4;150\nTunas konservuotas|tuna canned|tuna;116;25.5;100\nMenkė|cod;82;17.8;150\nKrevetės|shrimp|prawns;99;24;100\nSilkė|herring;158;18;100\nKiaušinis|egg|eggs;143;12.6;55\nKiaušinio baltymas|egg white;52;10.9;33\nPienas 2.5%|pienas|milk;52;3.4;200\nKefyras|kefir;53;3.4;250\nJogurtas natūralus|yogurt plain|jogurtas;61;3.5;150\nGraikiškas jogurtas 0%|greek yogurt;59;10.2;150\nGraikiškas jogurtas 2%|greek yogurt 2;73;9.9;150\nVarškė liesa|varske|quark|cottage cheese;73;16.5;100\nVarškė 5%|varške 5;121;16;100\nVarškė 9%|varške 9;156;16;100\nGrietinė 20%|grietine|sour cream;206;2.7;20\nGrietinė 10%|grietine 10;118;3;20\nKietas sūris|suris|sūris|cheese|gouda|edam;356;25;30\nMocarela|mozzarella;280;22;100\nFetos sūris|feta;264;14;50\nSviestas|butter;717;0.9;10\nBaltymų milteliai|protein powder|whey;380;78;30\nAvižų dribsniai|avizu dribsniai|oats|oatmeal;375;13;40\nRyžiai sausi|ryziai|rice dry|rice;360;7;75\nRyžiai virti|rice cooked;130;2.7;150\nMakaronai sausi|makaronai|pasta dry|pasta;357;12.5;80\nMakaronai virti|pasta cooked;158;5.8;200\nGrikiai sausi|grikiai|buckwheat;343;13.3;70\nGrikiai virti|buckwheat cooked;92;3.4;150\nKuskusas|couscous;376;12.8;70\nRuginė duona|duona|rye bread|bread;250;8.5;35\nBatonas|white bread|baltos duonos;265;9;30\nPilno grūdo duona|whole wheat bread;247;13;35\nTortilija|tortilla;312;8.3;60\nKvietiniai miltai|miltai|flour;364;10.3;30\nJuodasis šokoladas 70%|dark chocolate|juodas sokoladas;598;7.8;20\nPieniškas šokoladas|milk chocolate|sokoladas;535;7.7;20\nMigdolai|almonds;579;21.2;30\nGraikiniai riešutai|walnuts;654;15.2;30\nLazdyno riešutai|hazelnuts;628;15;30\nAnakardžiai|cashews;553;18;30\nŽemės riešutai|peanuts;567;25.8;30\nŽemės riešutų sviestas|peanut butter;588;25;15\nSaulėgrąžų sėklos|sunflower seeds;584;20.8;20\nLinų sėmenys|flax seeds;534;18.3;10\nChia sėklos|chia;486;16.5;15\nAlyvuogių aliejus|aliejus|olive oil|oil;884;0;10\nMedus|honey;304;0.3;20\nCukrus|sugar;387;0;5\nHumusas|hummus;166;7.9;50\nTofu;120;13;100\nPica|pizza;266;11;120\nBulvytės fri|french fries|fries;312;3.4;100\nTraškučiai|chips|crisps;536;7;30\nLedai|ice cream;207;3.5;70'.split('\n').map(function(l){var p=l.split(';');return{names:p[0].split('|'),kcal:+p[1],protein:+p[2],portion:+p[3]};});
+function dbMatch(q){
+ var qn=normName(q).split(/[^a-z0-9%.]+/).filter(Boolean);
+ if(!qn.length)return[];
+ var cp=function(a,b){var n=0;while(n<a.length&&n<b.length&&a[n]===b[n])n++;return n;};
+ var wm=function(a,b){var c=cp(a,b);return c>=Math.max(4,Math.min(a.length,b.length)-2)||(a===b);};
+ var out=[];
+ FOOD_DB.forEach(function(e){
+  var best=0;
+  e.names.forEach(function(nm){
+   var nn=normName(nm),aw=nn.split(/[^a-z0-9%.]+/).filter(Boolean),sc=0;
+   if(nn===qn.join(' '))sc=100;
+   else{
+    var all=qn.every(function(w){return aw.some(function(x){return wm(w,x);});});
+    if(all){sc=60+(aw.length===qn.length?20:0)+(nn.indexOf(qn[0])===0?5:0);}
+    else{var hit=aw.every(function(x){return qn.some(function(w){return wm(w,x);});});if(hit&&aw.length)sc=40;}
+   }
+   if(sc>best)best=sc;
+  });
+  if(best)out.push({e:e,s:best});
+ });
+ out.sort(function(a,b){return b.s-a.s;});
+ return out.slice(0,6).map(function(x){return {name:x.e.names[0],kcal:x.e.kcal,protein:x.e.protein,portion:x.e.portion,score:x.s};});
+}
+async function offSearch(q){
+ var res=await fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=12&fields=product_name,brands,nutriments,serving_quantity');
+ var d=await res.json(),out=[];
+ (d.products||[]).forEach(function(p){
+  var n=p.nutriments||{},k=Number(n['energy-kcal_100g']),pr=Number(n['proteins_100g']);
+  if(!(p.product_name&&k>=0&&pr>=0))return;
+  var b=p.brands?String(p.brands).split(',')[0].trim():'';
+  out.push({name:String(p.product_name).trim()+(b?' ('+b+')':''),kcal:r1(k),protein:r1(pr),portion:Number(p.serving_quantity)>0?Math.round(Number(p.serving_quantity)):0,off:true});
+ });
+ return out.slice(0,6);
+}
+function autoApply(c){
+ var s=ui.sheet;syncFoodForm();
+ s.unit='g';s.kcal=String(c.kcal);s.protein=String(c.protein);s.pg=c.portion>0?String(c.portion):'';
+ if(!String(s.name).trim())s.name=c.name;
+ s.cands=null;s.autoMsg='Filled from "'+c.name+'". These are typical values, check them against your package.';
+ renderSheet();
+}
 function sheetFood(){
  var s=ui.sheet;
  return '<div class="sh"><h2>'+(s.id?'Edit food':'New food')+'</h2>'+closeBtn()+'</div>'+
- '<label class="field"><span>Name</span><div class="inp"><input id="f-name" type="text" maxlength="60" value="'+esc(s.name)+'" autocomplete="off"></div></label>'+
+ '<label class="field" style="margin-bottom:8px"><span>Name</span><div class="inp"><input id="f-name" type="text" maxlength="60" value="'+esc(s.name)+'" autocomplete="off"></div></label>'+
+ '<button class="btn ghost sm" style="margin:0 0 8px" data-act="food-auto">'+svg('idea',18)+'Auto-fill kcal, protein and portion</button>'+
+ (s.autoMsg?'<p class="hint" style="margin:0 0 10px">'+esc(s.autoMsg)+'</p>':'')+
+ (s.cands&&s.cands.length?'<ul class="list" style="margin:0 0 12px">'+s.cands.map(function(c,n){return '<li><button class="row" data-act="auto-pick" data-n="'+n+'"><span class="main"><b>'+esc(c.name)+'</b><small>'+(c.off?'Open Food Facts, per 100 g':'per 100 g')+(c.portion>0?', portion '+c.portion+' g':'')+'</small></span><span class="vals"><b class="k">'+fmtP(c.kcal)+' kcal</b><small class="p">'+fmtP(c.protein)+' g protein</small></span></button></li>';}).join('')+'</ul>':'')+
  '<div class="field"><span>Amounts are measured</span><div class="seg"><button class="'+(s.unit==='g'?'on':'')+'" data-act="basis" data-unit="g">By gram</button><button class="'+(s.unit==='portion'?'on':'')+'" data-act="basis" data-unit="portion">By portion</button></div></div>'+
  '<p class="hint" style="margin:-4px 0 12px">'+(s.unit==='g'?'Enter the values for 100 g. You will log the grams you ate.':'Enter the values for one portion. You will log how many portions you ate.')+'</p>'+
  '<div class="two stack"><label class="field"><span>Calories</span><div class="inp"><input id="f-kcal" type="text" inputmode="decimal" value="'+esc(s.kcal)+'" autocomplete="off"><em>kcal</em></div></label>'+
@@ -935,7 +980,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 28</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 29</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -1140,7 +1185,7 @@ var LT={
 'Name':'Pavadinimas','Calories':'Kalorijos','Save food':'Išsaugoti maistą','Delete food':'Ištrinti maistą','By gram':'Pagal gramus','By portion':'Pagal porcijas',
 'Amount eaten':'Suvalgytas kiekis','Portions eaten':'Suvalgytos porcijos','Choose another food':'Pasirinkti kitą maistą','Save changes':'Išsaugoti pakeitimus',
 'Remove entry':'Pašalinti įrašą','Add again':'Pridėti dar kartą','Copy to today':'Kopijuoti į šiandien','Add to recipe':'Pridėti į receptą',
-'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Monthly summary':'Mėnesio santrauka','Monthly deficit':'Mėnesio deficitas','Monthly surplus':'Mėnesio perteklius','Est. fat change':'Apytiksl. riebalų pokytis','Weeks':'Savaitės','Weight':'Svoris','7-day average':'7 dienų vidurkis','Goal':'Tikslas','Tap the graph to see a day':'Palieskite grafiką, kad pamatytumėte dieną','Y axis':'Y ašis','Auto':'Auto','Down to goal':'Iki tikslo','Custom':'Savas','Min':'Min','Max':'Maks','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
+'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Monthly summary':'Mėnesio santrauka','Monthly deficit':'Mėnesio deficitas','Monthly surplus':'Mėnesio perteklius','Est. fat change':'Apytiksl. riebalų pokytis','Weeks':'Savaitės','Weight':'Svoris','7-day average':'7 dienų vidurkis','Goal':'Tikslas','Tap the graph to see a day':'Palieskite grafiką, kad pamatytumėte dieną','Y axis':'Y ašis','Auto':'Auto','Down to goal':'Iki tikslo','Custom':'Savas','Min':'Min','Max':'Maks','Auto-fill kcal, protein and portion':'Užpildyti kcal, baltymus ir porciją','Pick the closest match:':'Pasirinkite artimiausią:','Type the food name first.':'Pirmiausia įveskite pavadinimą.','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
 'Or type the barcode number':'Arba įveskite kodo numerį','New recipe':'Naujas receptas','Edit recipe':'Redaguoti receptą','Save recipe':'Išsaugoti receptą',
 'Delete recipe':'Ištrinti receptą','Makes':'Išeina','Portion weight':'Porcijos svoris','Add ingredient':'Pridėti ingredientą','Recipe':'Receptas',
 'Date':'Data','Save':'Išsaugoti','All weight entries':'Visi svorio įrašai','Latest':'Paskutinis','Change':'Pokytis','Average':'Vidurkis',
@@ -1436,6 +1481,19 @@ var actions={
  'open-day':function(el){ui.date=el.dataset.date;ui.tab='today';render();window.scrollTo(0,0);},
  'food-new':function(){newFood(null);},
  'food-new-from-entry':function(el){newFood(ui.sheet,el.dataset.name||'');},
+ 'food-auto':async function(){
+  syncFoodForm();var s=ui.sheet,q=String(s.name||'').trim();
+  s.autoMsg='';s.cands=null;
+  if(q.length<2){s.autoMsg='Type the food name first.';renderSheet();return;}
+  var m=dbMatch(q);
+  if(m.length&&m[0].score>=80&&(m.length===1||m[1].score<m[0].score)){autoApply(m[0]);return;}
+  if(m.length){s.cands=m;s.autoMsg='Pick the closest match:';renderSheet();return;}
+  s.autoMsg='Searching Open Food Facts...';renderSheet();
+  try{var r=await offSearch(q);if(ui.sheet!==s)return;s.cands=r;s.autoMsg=r.length?'No common food found. Closest packaged products:':'Nothing found. Enter the values by hand.';}
+  catch(e){if(ui.sheet!==s)return;s.autoMsg='No common food found, and the online search needs the installed app and internet. Enter the values by hand.';}
+  renderSheet();
+ },
+ 'auto-pick':function(el){var s=ui.sheet;if(!s||!s.cands)return;var c=s.cands[Number(el.dataset.n)];if(c)autoApply(c);},
  'food-edit':function(el){
   var f=db.foods.find(function(x){return x.id===el.dataset.id;});if(!f)return;
   ui.sheet={type:'food',id:f.id,name:f.name,unit:f.unit,kcal:String(f.kcal),protein:String(f.protein),pg:f.portionG?String(f.portionG):'',rec:!!(f.isRecipe||f.recipeId),lock:!!f.recipeId,fav:!!f.fav,back:null};renderSheet();
