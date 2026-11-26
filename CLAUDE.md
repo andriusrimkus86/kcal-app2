@@ -16,7 +16,7 @@ Maintenance/target: `autoGoals()` (called from `save()`) recomputes `goals.maint
 ## How to build
 Repo: https://github.com/andriusrimkus86/kcal-app2 (branch `main`). Run `.\build-apk.ps1 "message"` from this folder: commits everything, pushes, waits for the "Build APK" run (`gh run watch`), downloads the artifact to `apk\kcal-log.apk` (replaces the old one). On failure it prints the failed log; fix and rerun. Before building: bump "App version N", `node --check` the script, jsdom-test the change.
 
-Signing: every build uses the same debug key (GitHub secret `DEBUG_KEYSTORE_B64` = base64 of `keystore\kcal-debug.keystore`, alias `androiddebugkey`, password `android`; the folder is git-ignored, keep a copy). Without it updates need an uninstall, which wipes the app's data.
+Signing: every build uses the same debug key (GitHub secret `DEBUG_KEYSTORE_B64` = base64 of `keystore\kcal-debug.keystore`, alias `androiddebugkey`, password `android`; the folder is git-ignored, keep a copy). The workflow passes it to Gradle with `-Pandroid.injected.signing.*` (writing `~/.android/debug.keystore` was ignored on the runner); expected cert SHA256 starts `13:DF:11:08`. Without it updates need an uninstall, which wipes the app's data.
 
 ## Build the APK (details)
 Each push to `main` runs the workflow; the APK is the run's `kcal-log-apk` artifact.
