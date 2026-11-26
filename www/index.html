@@ -312,11 +312,11 @@ function wOn(ds){var b=null;db.weights.forEach(function(w){if(w.date<=ds&&(!b||w
 function wFirst(){var b=null;db.weights.forEach(function(w){if(!b||w.date<b.date)b=w;});return b;}
 // Smoothed weight: exponential moving average moving 10% per day toward each weigh-in, so water swings don't hide the trend.
 function weightTrend(){var ws=db.weights.slice().sort(function(a,b){return a.date<b.date?-1:1;}),out=[],t=null,pd=null;ws.forEach(function(w){t=t===null?w.kg:t+(1-Math.pow(.9,Math.max(dayDiff(pd,w.date),0)))*(w.kg-t);pd=w.date;out.push({date:w.date,t:t});});return out;}
-// Real maintenance from about the last 28 days before the latest weigh-in up to ds: average logged kcal + trend kg lost x 7700 / days. null until there is enough data.
+// Real maintenance from up to the last 8 weeks before the latest weigh-in up to ds: average logged kcal + trend kg lost x 7700 / days. null until there is enough data.
 function adaptMaint(ds){
  var tr=weightTrend().filter(function(p){return p.date<=ds;});if(tr.length<2)return null;
  // Skip the first 2 weeks of the diet: early water/glycogen loss would make maintenance look far too high.
- var e=tr[tr.length-1],from=addDays(e.date,-28),st0=String(db.goals.start||'').trim(),skip=addDays(/^\d{4}-\d{2}-\d{2}$/.test(st0)&&st0>tr[0].date?st0:tr[0].date,14),s=null;
+ var e=tr[tr.length-1],from=addDays(e.date,-56),st0=String(db.goals.start||'').trim(),skip=addDays(/^\d{4}-\d{2}-\d{2}$/.test(st0)&&st0>tr[0].date?st0:tr[0].date,14),s=null;
  tr.forEach(function(p){if(p.date>=skip&&p.date<=from)s=p;});
  if(!s)s=tr.filter(function(p){return p.date>=skip;})[0];
  if(!s)return null;
@@ -1103,7 +1103,7 @@ function sheetSettings(){
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
  '<label class="btn ghost wide" style="margin-top:8px;text-align:center">Restore from file<input type="file" id="bk-file" hidden></label>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p>'+bkHint()+'<p class="hint">App version 35</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p>'+bkHint()+'<p class="hint">App version 36</p>';
 }
 function bkHint(){
  var lt=db.lang==='lt',i=bkInfo();
