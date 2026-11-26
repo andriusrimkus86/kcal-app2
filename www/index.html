@@ -45,11 +45,11 @@ button{cursor:pointer}
 body.t-today #main{padding-bottom:180px}
 
 /* header */
-.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 0 10px}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 0 10px}
 h1{font:700 30px/1.05 var(--font-d);letter-spacing:-.02em;margin:0}
 h2{font:700 22px/1.15 var(--font-d);letter-spacing:-.01em;margin:0}
 .sub{margin:4px 0 0;color:var(--muted);font-size:14px}
-.tools{display:flex;gap:6px;align-items:center}
+.tools{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;align-items:center;margin-left:auto}
 .icon{width:42px;height:42px;display:grid;place-items:center;border:0;border-radius:12px;background:var(--surface2);color:var(--text)}
 .link{border:0;background:none;color:var(--blue-text);padding:4px 0 10px;font-weight:600}
 
@@ -1103,7 +1103,7 @@ function sheetSettings(){
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
  '<label class="btn ghost wide" style="margin-top:8px;text-align:center">Restore from file<input type="file" id="bk-file" hidden></label>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p>'+bkHint()+'<p class="hint">App version 34</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p>'+bkHint()+'<p class="hint">App version 35</p>';
 }
 function bkHint(){
  var lt=db.lang==='lt',i=bkInfo();
