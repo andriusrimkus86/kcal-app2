@@ -293,7 +293,7 @@ function normalize(d){var b=defaults();return{
  rem:(d.rem&&typeof d.rem==='object')?{on:!!d.rem.on,time:String(d.rem.time||'20:00'),week:!!d.rem.week}:{on:false,time:'20:00',week:false}};}
 function load(){try{var raw=localStorage.getItem(KEY);if(raw)return normalize(JSON.parse(raw));}catch(e){}return defaults();}
 var storageOk=true;
-var db=load();
+var db=load();autoGoals();
 var widgetTimer=null;
 function widgetSoon(){clearTimeout(widgetTimer);widgetTimer=setTimeout(pushWidget,400);}
 function pushWidget(){
@@ -307,7 +307,13 @@ function pushWidget(){
   else if(C.nativePromise)C.nativePromise('WidgetBridge','update',o).catch(function(){});
  }catch(e){}
 }
-function save(){try{localStorage.setItem(KEY,JSON.stringify(db));storageOk=true;}catch(e){storageOk=false;}widgetSoon();}
+function bmrHB(kg,h,age,sex){return sex==='f'?655.1+9.563*kg+1.85*h-4.676*age:66.47+13.75*kg+5.003*h-6.755*age;}
+function wOn(ds){var b=null;db.weights.forEach(function(w){if(w.date<=ds&&(!b||w.date>b.date))b=w;});return b;}
+function wFirst(){var b=null;db.weights.forEach(function(w){if(!b||w.date<b.date)b=w;});return b;}
+function autoOk(){var g=db.goals;return !!g.auto&&heightCm()>0&&num(g.age)>0&&db.weights.length>0;}
+function maintAt(ds){var g=db.goals;if(!autoOk())return g.maint>0?g.maint:0;var w=wOn(ds)||wFirst(),f=num(g.actf);if(!(f>0))f=1.3;return Math.floor(bmrHB(w.kg,heightCm(),num(g.age),g.sex==='f'?'f':'m')*f);}
+function autoGoals(){var g=db.goals;if(!autoOk())return;var m=maintAt('9999-12-31'),st=num(g.step)>0?num(g.step):50,d=num(g.deficit)>=0?num(g.deficit):0,t=Math.round((m-d)/st)*st;g.maint=m;if(t>=800)g.kcal=t;}
+function save(){autoGoals();try{localStorage.setItem(KEY,JSON.stringify(db));storageOk=true;}catch(e){storageOk=false;}widgetSoon();}
 
 var now=new Date();
 var ui={tab:'today',date:todayStr(),cal:{y:now.getFullYear(),m:now.getMonth()},sheet:null,menu:false,range:90,idea:{target:500,seed:1},ideaList:[],fsort:'az',fq:''};
@@ -795,7 +801,7 @@ function addDays(s,n){var d=parseYmd(s);d.setDate(d.getDate()+n);return ymd(d);}
 function weekStart(s){var d=parseYmd(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return ymd(d);}
 function viewWeekly(){
  var st=ui.wk||weekStart(todayStr()),en=addDays(st,6),tot=totalsByDate(),g=db.goals;
- var sk=0,sp=0,n=0,hits=0,rows='',i,mt=g.maint>0?g.maint:3200,defi=0;
+ var sk=0,sp=0,n=0,hits=0,rows='',i,mt=maintAt(en)||3200,defi=0;
  var names=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
  for(i=0;i<7;i++){
   var ds=addDays(st,i),t=tot[ds],ok=goalHit(t);
@@ -820,7 +826,7 @@ function monthKey(s){return s.slice(0,7);}
 function addMonths(k,n){var p=k.split('-').map(Number),d=new Date(p[0],p[1]-1+n,1);return d.getFullYear()+'-'+pad(d.getMonth()+1);}
 function viewMonthly(){
  var mk=ui.mo||monthKey(todayStr()),p=mk.split('-').map(Number),y=p[0],m=p[1]-1,nd=new Date(y,m+1,0).getDate();
- var st=mk+'-01',en=mk+'-'+pad(nd),tot=totalsByDate(),g=db.goals,mt=g.maint>0?g.maint:3200;
+ var st=mk+'-01',en=mk+'-'+pad(nd),tot=totalsByDate(),g=db.goals,mt=maintAt(en)||3200;
  var sk=0,sp=0,n=0,hits=0,defi=0,i,wk={},order=[];
  for(i=1;i<=nd;i++){
   var ds=mk+'-'+pad(i),t=tot[ds],ws0=weekStart(ds);
@@ -1004,12 +1010,26 @@ function sheetFood(){
  (s.unit==='g'?'<label class="field"><span>Portion or package size, optional</span><div class="inp"><input id="f-pg" type="text" inputmode="decimal" value="'+esc(s.pg||'')+'" autocomplete="off"><em>g</em></div></label><p class="hint" style="margin:-4px 0 4px">Fill this in to log the food by portion as well as by gram.</p>':'')+'<label class="chk"><input type="checkbox" id="f-fav"'+(s.fav?' checked':'')+'><span>Favourite, show it first when adding food</span></label>'+'<label class="chk"><input type="checkbox" id="f-rec"'+(s.rec?' checked':'')+(s.lock?' disabled':'')+'><span>This is a recipe, show it in Recipes'+(s.lock?' (made in Recipes)':'')+'</span></label>'+'<p class="err" id="err"></p><button class="btn primary wide" data-act="food-save">Save food</button>'+
  (s.id?'<button class="btn danger wide" data-act="food-del">Delete food</button><p class="hint">Entries you already logged keep their numbers.</p>':'');
 }
+function autoBlock(){
+ var g=db.goals,lt=db.lang==='lt',on=!!g.auto,seg=function(v,l){return '<button class="'+((g.sex==='f'?'f':'m')===v?'on':'')+'" data-act="sex" data-v="'+v+'">'+l+'</button>';};
+ var h='<div class="field"><span>Set maintenance and target from my weight</span><div class="seg"><button class="'+(on?'on':'')+'" data-act="auto-toggle" data-v="1">On</button><button class="'+(on?'':'on')+'" data-act="auto-toggle" data-v="0">Off</button></div></div>';
+ if(!on)return h;
+ h+='<div class="field"><span>Sex</span><div class="seg">'+seg('m','Male')+seg('f','Female')+'</div></div>'+
+ '<div class="two"><label class="field"><span>Age</span><div class="inp"><input id="g-age" type="text" inputmode="numeric" value="'+esc(g.age||'')+'"><em>years</em></div></label>'+
+ '<label class="field"><span>Activity factor</span><div class="inp"><input id="g-actf" type="text" inputmode="decimal" value="'+esc(g.actf||1.3)+'"></div></label></div>'+
+ '<div class="two"><label class="field"><span>Daily deficit</span><div class="inp"><input id="g-def" type="text" inputmode="decimal" value="'+esc(g.deficit==null?'':g.deficit)+'"><em>kcal</em></div></label>'+
+ '<label class="field"><span>Round target to</span><div class="inp"><input id="g-step" type="text" inputmode="decimal" value="'+esc(g.step||50)+'"><em>kcal</em></div></label></div>';
+ if(autoOk()){var w=wOn('9999-12-31');h+='<p class="hint">'+(lt?'Palaikomosios kalorijos dabar: ':'Maintenance now: ')+'<b>'+g.maint+' kcal</b> ('+w.kg+' kg). '+(lt?'Dienos tikslas: ':'Daily target: ')+'<b>'+g.kcal+' kcal</b>. '+(lt?'Tikslas perskaičiuojamas, kai įrašote naują svorį.':'The target is recalculated whenever you log a new weight.')+'</p>';}
+ else h+='<p class="err" style="min-height:0">'+(lt?'Įveskite ūgį (svorio grafiko puslapyje), amžių ir bent vieną svorį.':'Enter your height (on the Weight graph page), your age, and at least one weight.')+'</p>';
+ return h+'<p class="hint">'+(lt?'Formulė: Harris-Benedict (originali) × aktyvumo koeficientas. 1,3 atitinka „Lengvai aktyvus“ raclub.lt skaičiuoklėje.':'Formula: original Harris-Benedict times the activity factor. 1.3 matches "Lengvai aktyvus" on the raclub.lt calculator.')+'</p>';
+}
 function sheetSettings(){
  var g=db.goals,th=function(v,l){return '<button class="'+(db.theme===v?'on':'')+'" data-act="theme" data-v="'+v+'">'+l+'</button>';};
  return '<div class="sh"><h2>Goals and settings</h2>'+closeBtn()+'</div>'+
- '<div class="two"><label class="field"><span>Daily calories</span><div class="inp"><input id="g-kcal" type="text" inputmode="decimal" value="'+esc(g.kcal)+'"><em>kcal</em></div></label>'+
+ '<div class="two"><label class="field"><span>Daily calories</span><div class="inp"><input id="g-kcal"'+(autoOk()?' disabled':'')+' type="text" inputmode="decimal" value="'+esc(g.kcal)+'"><em>kcal</em></div></label>'+
  '<label class="field"><span>Daily protein</span><div class="inp"><input id="g-protein" type="text" inputmode="decimal" value="'+esc(g.protein)+'"><em>g</em></div></label></div>'+
- '<label class="field"><span>Maintenance calories, used for the weekly deficit</span><div class="inp"><input id="g-maint" type="text" inputmode="decimal" value="'+esc(g.maint)+'"><em>kcal</em></div></label>'+
+ '<label class="field"><span>Maintenance calories, used for the weekly deficit</span><div class="inp"><input id="g-maint"'+(autoOk()?' disabled':'')+' type="text" inputmode="decimal" value="'+esc(g.maint)+'"><em>kcal</em></div></label>'+
+ autoBlock()+
  '<div class="field"><span>Theme</span><div class="seg">'+th('system','System')+th('dark','Dark')+th('light','Light')+'</div></div>'+
  '<div class="field"><span>Language</span><div class="seg"><button class="'+(db.lang==='en'?'on':'')+'" data-act="lang" data-v="en">English</button><button class="'+(db.lang==='lt'?'on':'')+'" data-act="lang" data-v="lt">Lietuvi\u0173</button></div></div>'+
  '<div class="field"><span>Daily reminder (installed app)</span><label class="chk" style="padding-top:2px"><input type="checkbox" id="rem-on"'+(db.rem.on?' checked':'')+'><span>Remind me to log meals and weight</span></label><label class="chk" style="padding-top:2px"><input type="checkbox" id="rem-week"'+(db.rem.week?' checked':'')+'><span>Sunday 19:00 reminder for the weekly summary</span></label><div class="inp"><input id="rem-time" type="time" value="'+esc(db.rem.time)+'"></div><p class="err" id="rem-msg" style="min-height:0"></p></div>'+
@@ -1021,7 +1041,7 @@ function sheetSettings(){
  '<p class="err" id="sync-msg" style="min-height:0"></p></div>'+
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 30</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p><p class="hint">App version 31</p>';
 }
 function sheetImport(){
  return '<div class="sh"><h2>Import from Google Sheets</h2>'+closeBtn()+'</div>'+
@@ -1213,6 +1233,7 @@ function applyReminder(){
  scheduleReminder(on,time,false).then(function(){return scheduleWeekly(wk,false);});
 }
 var LT={
+'Set maintenance and target from my weight':'Skaičiuoti palaikomąsias kalorijas ir tikslą pagal svorį','Male':'Vyras','Female':'Moteris','Age':'Amžius','years':'metai','Activity factor':'Aktyvumo koeficientas','Daily deficit':'Dienos deficitas','Round target to':'Tikslą apvalinti iki','Sex':'Lytis',
 'Today':'Šiandien','Calendar':'Kalendorius','Foods':'Maistas','Weight':'Svoris','Add food':'Pridėti maistą',
 'Send to sheet':'Siųsti į lentelę','Copy yesterday':'Kopijuoti vakar','Fits your day':'Tinka šiai dienai',
 'Nothing logged yet':'Dar nieko neįrašyta','Tap Add food to log what you ate.':'Spauskite „Pridėti maistą“, kad įrašytumėte, ką valgėte.',
@@ -1597,6 +1618,8 @@ var actions={
   toast('Weight removed',function(){db.weights.push(removed);save();render();});
  },
  'settings':function(){ui.sheet={type:'settings'};renderSheet();},
+ 'sex':function(el){db.goals.sex=el.dataset.v==='f'?'f':'m';save();render();renderSheet();},
+ 'auto-toggle':function(el){var g=db.goals;g.auto=el.dataset.v==='1';if(g.auto){if(g.sex!=='f')g.sex='m';if(!(num(g.actf)>0))g.actf=1.3;if(g.deficit==null)g.deficit=Math.max(0,Math.round((g.maint>0?g.maint:3200)-g.kcal));if(!(num(g.step)>0))g.step=50;}save();render();renderSheet();},
  'theme':function(el){db.theme=el.dataset.v;save();applyTheme();renderSheet();},
  'backup-copy':function(){
   var t=JSON.stringify(db),ta=$('#bk');ta.value=t;ta.focus();ta.select();
@@ -1647,6 +1670,11 @@ document.addEventListener('change',function(e){
   if(key==='start'){if(raw===''||/^\d{4}-\d{2}-\d{2}$/.test(raw))db.goals.start=raw;else{toast('Write the start date as YYYY-MM-DD.');return;}}
   else{var nv=num(raw);if(raw===''){delete db.goals[key];}else if(nv>0)db.goals[key]=nv;else{toast('Enter a number.');return;}}
   save();render();return;
+ }
+  if(t.id==='g-age'||t.id==='g-actf'||t.id==='g-def'||t.id==='g-step'){
+  var av=num(t.value),ak=({'g-age':'age','g-actf':'actf','g-def':'deficit','g-step':'step'})[t.id],lim=({age:[10,100],actf:[1,2.5],deficit:[0,2500],step:[5,500]})[ak];
+  if(av>=lim[0]&&av<=lim[1]){db.goals[ak]=av;save();render();renderSheet();}else toast('Enter a number from '+lim[0]+' to '+lim[1]+'.');
+  return;
  }
   if(t.id==='g-kcal'||t.id==='g-protein'||t.id==='g-maint'){
   var v=num(t.value);
