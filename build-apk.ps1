@@ -1,7 +1,7 @@
 # Commit + push, wait for the GitHub Actions build, download the APK to apk\kcal-log.apk
 # Usage: .\build-apk.ps1 "what changed"
 param([string]$Message = "Update app")
-$ErrorActionPreference = 'Stop'
+# No global 'Stop': PowerShell 5.1 treats git's normal stderr output as an error when redirected; exit codes are checked instead.
 Set-Location $PSScriptRoot
 
 git add -A
@@ -33,6 +33,6 @@ $tmp = Join-Path $apkDir '_download'
 if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 gh run download $id -n kcal-log-apk -D $tmp
 if ($LASTEXITCODE) { throw "Artifact download failed" }
-Move-Item (Join-Path $tmp 'app-debug.apk') (Join-Path $apkDir 'kcal-log.apk') -Force
+Move-Item (Join-Path $tmp 'app-debug.apk') (Join-Path $apkDir 'kcal-log.apk') -Force -ErrorAction Stop
 Remove-Item $tmp -Recurse -Force
 Write-Host "APK ready: $(Join-Path $apkDir 'kcal-log.apk')"
