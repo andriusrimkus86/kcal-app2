@@ -315,30 +315,38 @@ function weightTrend(){var ws=db.weights.slice().sort(function(a,b){return a.dat
 // Real maintenance from about the last 28 days before the latest weigh-in up to ds: average logged kcal + trend kg lost x 7700 / days. null until there is enough data.
 function adaptMaint(ds){
  var tr=weightTrend().filter(function(p){return p.date<=ds;});if(tr.length<2)return null;
- var e=tr[tr.length-1],from=addDays(e.date,-28),s=null;
- tr.forEach(function(p){if(p.date<=from)s=p;});
- if(!s)s=tr[0];
+ // Skip the first 2 weeks of the diet: early water/glycogen loss would make maintenance look far too high.
+ var e=tr[tr.length-1],from=addDays(e.date,-28),st0=String(db.goals.start||'').trim(),skip=addDays(/^\d{4}-\d{2}-\d{2}$/.test(st0)&&st0>tr[0].date?st0:tr[0].date,14),s=null;
+ tr.forEach(function(p){if(p.date>=skip&&p.date<=from)s=p;});
+ if(!s)s=tr.filter(function(p){return p.date>=skip;})[0];
+ if(!s)return null;
  var days=dayDiff(s.date,e.date);if(days<14)return null;
  var tot=totalsByDate(),sum=0,n=0,d;
  for(d=s.date;d<e.date;d=addDays(d,1)){var x=tot[d];if(x&&x.kcal>0){sum+=x.kcal;n++;}}
  if(n<days*.7)return null;
- var m=Math.round((sum/n+(s.t-e.t)*7700/days)/10)*10;
- return m>=1200&&m<=6000?{m:m,days:days,from:s.date,to:e.date}:null;}
+ // Weight change = least-squares slope of the raw weigh-ins inside the window (no lag carried in from before it, unlike the smoothed trend).
+ var ws=db.weights.filter(function(w){return w.date>=s.date&&w.date<=e.date;});if(ws.length<3)return null;
+ var mx=0,my=0,sxy=0,sxx=0;ws.forEach(function(w){mx+=dayDiff(s.date,w.date)/ws.length;my+=w.kg/ws.length;});
+ ws.forEach(function(w){var x=dayDiff(s.date,w.date)-mx;sxy+=x*(w.kg-my);sxx+=x*x;});if(!sxx)return null;
+ var kg=-sxy/sxx*days,m=Math.round((sum/n+kg*7700/days)/10)*10;
+ return m>=1200&&m<=6000?{m:m,days:days,from:s.date,to:e.date,eat:Math.round(sum/n),kg:kg}:null;}
 function autoOk(){var g=db.goals;return !!g.auto&&heightCm()>0&&num(g.age)>0&&db.weights.length>0;}
 function formulaMaint(ds){var g=db.goals,w=wOn(ds)||wFirst(),f=num(g.actf);if(!(f>0))f=1.3;return Math.floor(bmrHB(w.kg,heightCm(),num(g.age),g.sex==='f'?'f':'m')*f);}
 function maintAt(ds){var g=db.goals;if(!autoOk())return g.maint>0?g.maint:0;var a=g.adapt?adaptMaint(ds):null;return a?a.m:formulaMaint(ds);}
 function autoGoals(){var g=db.goals;if(!autoOk())return;var m=maintAt('9999-12-31'),st=num(g.step)>0?num(g.step):50,d=num(g.deficit)>=0?num(g.deficit):0,t=Math.round((m-d)/st)*st;g.maint=m;if(t>=800)g.kcal=t;}
 function save(){autoGoals();try{localStorage.setItem(KEY,JSON.stringify(db));storageOk=true;}catch(e){storageOk=false;}widgetSoon();autoBackupSoon();}
-/* ---------- automatic backup (installed app): Documents/KcalLog/kcal-backup-YYYY-MM-DD.json, last 14 days kept ---------- */
+/* ---------- automatic backup (installed app): Download/KcalLog/kcal-backup-YYYY-MM-DD-<id>.json, last 14 days kept ---------- */
+// Download accepts any file type on Android 11+. The per-install <id> matters because Android won't let a reinstalled app overwrite files the old install made.
 var BKEY='kcal-autobk-v1',bkTimer=null;
 function bkInfo(){try{return JSON.parse(localStorage.getItem(BKEY))||{};}catch(e){return {};}}
 function autoBackupSoon(){clearTimeout(bkTimer);bkTimer=setTimeout(autoBackup,3000);}
 function autoBackup(){
  var C=window.Capacitor,F=C&&C.Plugins&&C.Plugins.Filesystem;if(!F||!C.isNativePlatform||!C.isNativePlatform())return;
- var day=todayStr(),info=bkInfo(),dir='DOCUMENTS',folder='KcalLog';
- F.writeFile({path:folder+'/kcal-backup-'+day+'.json',data:JSON.stringify(db),directory:dir,encoding:'utf8',recursive:true}).then(function(){
-  var prune=info.pruned!==day;info={at:day+' '+new Date().toTimeString().slice(0,5),err:'',pruned:day};localStorage.setItem(BKEY,JSON.stringify(info));
-  if(prune)F.readdir({path:folder,directory:dir}).then(function(r){var cut='kcal-backup-'+addDays(day,-14);(r.files||[]).forEach(function(f){var n=f.name||f;if(/^kcal-backup-\d{4}-\d{2}-\d{2}\.json$/.test(n)&&n<cut)F.deleteFile({path:folder+'/'+n,directory:dir}).catch(function(){});});}).catch(function(){});
+ var day=todayStr(),info=bkInfo(),dir='EXTERNAL_STORAGE',folder='Download/KcalLog';
+ if(!info.id){info.id=Math.random().toString(36).slice(2,6);localStorage.setItem(BKEY,JSON.stringify(info));}
+ F.writeFile({path:folder+'/kcal-backup-'+day+'-'+info.id+'.json',data:JSON.stringify(db),directory:dir,encoding:'utf8',recursive:true}).then(function(){
+  var prune=info.pruned!==day;info={id:info.id,at:day+' '+new Date().toTimeString().slice(0,5),err:'',pruned:day};localStorage.setItem(BKEY,JSON.stringify(info));
+  if(prune)F.readdir({path:folder,directory:dir}).then(function(r){var cut='kcal-backup-'+addDays(day,-14);(r.files||[]).forEach(function(f){var n=f.name||f;if(/^kcal-backup-\d{4}-\d{2}-\d{2}/.test(n)&&n.slice(0,22)<cut)F.deleteFile({path:folder+'/'+n,directory:dir}).catch(function(){});});}).catch(function(){});
  },function(e){info.err=String(e&&e.message||e);localStorage.setItem(BKEY,JSON.stringify(info));});
 }
 function restoreText(txt){
@@ -550,7 +558,9 @@ function chart(pts,tall){
  var ts=pts.map(function(p){return parseYmd(p.date).getTime();}),t0=ts[0],t1=pj?parseYmd(pj.date).getTime():ts[ts.length-1],one=(pts.length===1||t1===t0);
  var X=function(i){return one?(L+W-R)/2:L+(ts[i]-t0)/(t1-t0)*(W-L-R);};
  var Y=function(k){return T+(hi-k)/(hi-lo)*(H-T-B);};
- var step=niceStep(hi-lo,4),grid='',v;
+ // Labels adapt to the axis: the smallest of 1/2/5/10... kg that leaves >=28px between labels, with small unlabelled ticks in between.
+ var ppk=(H-T-B)/(hi-lo),SN=[[1,.5],[2,1],[5,1],[10,5],[20,10],[50,10]].filter(function(s){return s[0]*ppk>=28;})[0],step=SN?SN[0]:niceStep(hi-lo,4),grid='',v,mn=SN&&SN[1]*ppk>=5?SN[1]:0;
+ if(mn)for(v=Math.ceil(lo/mn)*mn;v<=hi;v+=mn){if(Math.abs(v/step-Math.round(v/step))>1e-6){var my=Y(v).toFixed(1);grid+='<line class="tick" x1="'+(L-4)+'" x2="'+L+'" y1="'+my+'" y2="'+my+'"/>';}}
  for(v=Math.ceil(lo/step)*step;v<=hi;v+=step){var yy=Y(v).toFixed(1);grid+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'"/><text class="ax" x="'+(L-6)+'" y="'+(+yy+3)+'" text-anchor="end">'+fmtP(Math.round(v*100)/100)+'</text>';}
  var line=pts.map(function(p,i){return (i?'L':'M')+X(i).toFixed(1)+' '+Y(p.kg).toFixed(1);}).join(' ');
  var area=pts.length>1?line+' L'+X(pts.length-1).toFixed(1)+' '+(H-B)+' L'+X(0).toFixed(1)+' '+(H-B)+' Z':'';
@@ -558,7 +568,9 @@ function chart(pts,tall){
  if(pj){
   var sd=pj.f.date>pts[0].date?pj.f.date:pts[0].date,XT=function(d){return L+(parseYmd(d).getTime()-t0)/(t1-t0)*(W-L-R);},ex=XT(pj.date),ey=Y(pj.kg);
   ma='M'+XT(sd).toFixed(1)+' '+Y(pj.f.kg-pj.per*dayDiff(pj.f.date,sd)).toFixed(1)+' L'+ex.toFixed(1)+' '+ey.toFixed(1);
-  if(pj.kg>=lo&&pj.kg<=hi)pjl='<circle class="pt" cx="'+ex.toFixed(1)+'" cy="'+ey.toFixed(1)+'" r="3"/><text class="lastv" x="'+ex.toFixed(1)+'" y="'+(ey+16).toFixed(1)+'" text-anchor="end">'+fmtP(Math.round(pj.kg*10)/10)+'</text>';
+  pj.wk=[1,2,3,4].map(function(k){var d=addDays(pl.date,7*k),kg=pl.kg-pj.per*7*k;return {date:d,kg:Math.round(kg*10)/10,f:true,x:XT(d),y:Y(kg)};});
+  pj.wk.slice(0,3).forEach(function(p){if(p.kg>=lo&&p.kg<=hi)pjl+='<circle class="pt" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="2.5"/>';});
+  if(pj.kg>=lo&&pj.kg<=hi)pjl+='<circle class="pt" cx="'+ex.toFixed(1)+'" cy="'+ey.toFixed(1)+'" r="3"/><text class="lastv" x="'+ex.toFixed(1)+'" y="'+(ey+16).toFixed(1)+'" text-anchor="end">'+fmtP(Math.round(pj.kg*10)/10)+'</text>';
  }
  var dots='';
  if(pts.length<=45)dots=pts.map(function(p,i){return '<circle class="pt" cx="'+X(i).toFixed(1)+'" cy="'+Y(p.kg).toFixed(1)+'" r="3"/>';}).join('');
@@ -572,11 +584,13 @@ function chart(pts,tall){
   xl='<text class="ax" x="'+L+'" y="'+(H-8)+'">'+pts[0].date+'</text><text class="ax" x="'+(W-R)+'" y="'+(H-8)+'" text-anchor="end">'+(pj?pj.date:pts[li].date)+'</text>';
   var k;for(k=1;k<3;k++){var tt=t0+(t1-t0)*k/3,dd=new Date(tt),xx=(L+(W-L-R)*k/3).toFixed(1);xl+='<line class="tick" x1="'+xx+'" x2="'+xx+'" y1="'+(H-B)+'" y2="'+(H-B+4)+'"/><text class="ax" x="'+xx+'" y="'+(H-8)+'" text-anchor="middle">'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate())+'</text>';}
  }
- chartGeo={pts:pts,W:W,H:H,L:L,R:R,T:T,B:B,xs:pts.map(function(p,i){return X(i);}),ys:pts.map(function(p){return Y(p.kg);})};
+ var fc=pj?pj.wk:[];
+ chartGeo={pts:pts.concat(fc),W:W,H:H,L:L,R:R,T:T,B:B,xs:pts.map(function(p,i){return X(i);}).concat(fc.map(function(p){return p.x;})),ys:pts.map(function(p){return Y(p.kg);}).concat(fc.map(function(p){return p.y;}))};
  return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Weight over time in kilograms"><defs><clipPath id="cclip"><rect x="'+L+'" y="'+T+'" width="'+(W-L-R)+'" height="'+(H-B-T)+'"/></clipPath><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--amber);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--amber);stop-opacity:0"/></linearGradient></defs>'+
   grid+gl+'<g clip-path="url(#cclip)">'+(area?'<path class="area" d="'+area+'"/>':'')+(ma?'<path class="trend" d="'+ma+'"/>':'')+'<path class="ln" d="'+line+'"/>'+dots+'</g>'+lab+pjl+
   '<line id="chx" class="cx" x1="0" x2="0" y1="'+T+'" y2="'+(H-B)+'" style="display:none"/><circle id="chc" class="cc" r="6" style="display:none"/>'+xl+'</svg>'+
   '<div class="legend"><span><i class="l1"></i>Weight</span>'+(ma?'<span><i class="l2"></i>Trend, 4 weeks ahead</span>':'')+(goal?'<span><i class="l3"></i>Goal</span>':'')+'</div>'+
+  (pj?'<p class="hint" style="margin:8px 0 4px">Forecast at your average speed</p><dl class="stats" style="margin-top:0">'+pj.wk.map(function(p,k){return '<div><dt>'+p.date+'</dt><dd>'+fmtP(p.kg)+' kg</dd></div>';}).join('')+'</dl>':'')+
   '<div id="ctip" class="ctip">Tap the graph to see a day</div>';
 }
 function chartPick(e){
@@ -589,6 +603,7 @@ function chartPick(e){
  if(cx){cx.setAttribute('x1',g.xs[bi]);cx.setAttribute('x2',g.xs[bi]);cx.style.display='';}
  if(cc){cc.setAttribute('cx',g.xs[bi]);cc.setAttribute('cy',g.ys[bi]);cc.style.display='';}
  var bm=bmiOf(p.kg),dl=prev?p.kg-prev.kg:null;
+ if(tip&&p.f){tip.innerHTML='<b>'+p.date+'</b> &nbsp; <b class="k">'+fmtP(p.kg)+' kg</b> &nbsp; <span class="muted">'+(db.lang==='lt'?'prognozė':'forecast')+'</span>';return;}
  if(tip)tip.innerHTML='<b>'+p.date+'</b> &nbsp; <b class="k">'+fmtP(p.kg)+' kg</b>'+(dl!==null?' &nbsp; <span class="muted">'+(dl>0?'+':dl<0?'−':'')+fmtP(Math.abs(dl))+' kg vs previous</span>':'')+(bm>0?' '+bmiChip(p.kg):'');
 }
 function heightCm(){var h=num(db.goals.height);return h>=100&&h<=250?h:0;}
@@ -1064,7 +1079,7 @@ function autoBlock(){
  '<label class="field"><span>Round target to</span><div class="inp"><input id="g-step" type="text" inputmode="decimal" value="'+esc(g.step||50)+'"><em>kcal</em></div></label></div>'+
  '<label class="chk"><input type="checkbox" id="g-adapt"'+(g.adapt?' checked':'')+'><span>Adaptive maintenance: learn it from my food log and weight trend</span></label>';
  if(autoOk()){var w=wOn('9999-12-31'),ad=adaptMaint('9999-12-31'),fm=formulaMaint('9999-12-31');h+='<p class="hint">'+(lt?'Palaikomosios kalorijos dabar: ':'Maintenance now: ')+'<b>'+g.maint+' kcal</b> ('+w.kg+' kg). '+(lt?'Dienos tikslas: ':'Daily target: ')+'<b>'+g.kcal+' kcal</b>. '+(lt?'Tikslas perskaičiuojamas, kai įrašote naują svorį.':'The target is recalculated whenever you log a new weight.')+'</p>'+
-  '<p class="hint">'+(lt?'Pagal formulę: ':'Formula: ')+'<b>'+fm+' kcal</b>. '+(lt?'Prisitaikančios: ':'Adaptive: ')+(ad?'<b>'+ad.m+' kcal</b> ('+ad.from+' – '+ad.to+', '+ad.days+(lt?' d.)':' days)'):(lt?'dar per mažai duomenų. Reikia bent 14 dienų tarp svėrimų ir maisto įrašų bent 70 % tų dienų.':'not enough data yet. It needs at least 14 days between weigh-ins, with food logged on at least 70% of those days.'))+
+  '<p class="hint">'+(lt?'Pagal formulę: ':'Formula: ')+'<b>'+fm+' kcal</b>. '+(lt?'Prisitaikančios: ':'Adaptive: ')+(ad?'<b>'+ad.m+' kcal</b> ('+ad.from+' – '+ad.to+', '+ad.days+(lt?' d.)':' days)')+(lt?' = vidutiniškai suvalgyta ':' = average eaten ')+ad.eat+' kcal '+(ad.kg>=0?'+ ':'− ')+(lt?'tendencija ':'trend ')+(ad.kg>=0?(lt?'nukrito ':'fell '):(lt?'pakilo ':'rose '))+fmtP(Math.round(Math.abs(ad.kg)*10)/10)+' kg × 7700 / '+ad.days+' = '+Math.round(Math.abs(ad.kg)*7700/ad.days)+(lt?' kcal per dieną.':' kcal a day.'):(lt?'dar per mažai duomenų. Pirmos 2 dietos savaitės praleidžiamos (vanduo), tada reikia bent 14 dienų tarp svėrimų ir maisto įrašų bent 70 % tų dienų.':'not enough data yet. The first 2 weeks of the diet are skipped (water weight); after that it needs at least 14 days between weigh-ins, with food logged on at least 70% of those days.'))+
   (g.adapt?' '+(lt?'Naudojamos: ':'Using: ')+'<b>'+(ad?(lt?'prisitaikančios':'adaptive'):(lt?'formulė':'formula'))+'</b>.':'')+'</p>';}
  else h+='<p class="err" style="min-height:0">'+(lt?'Įveskite ūgį (svorio grafiko puslapyje), amžių ir bent vieną svorį.':'Enter your height (on the Weight graph page), your age, and at least one weight.')+'</p>';
  return h+'<p class="hint">'+(lt?'Formulė: Harris-Benedict (originali) × aktyvumo koeficientas. 1,3 atitinka „Lengvai aktyvus“ raclub.lt skaičiuoklėje.':'Formula: original Harris-Benedict times the activity factor. 1.3 matches "Lengvai aktyvus" on the raclub.lt calculator.')+'</p>';
@@ -1088,11 +1103,11 @@ function sheetSettings(){
  '<label class="field"><span>Backup</span><textarea id="bk" rows="4" placeholder="Tap Copy backup, or paste a backup here to restore it"></textarea></label>'+
  '<div class="two"><button class="btn ghost" data-act="backup-copy">Copy backup</button><button class="btn ghost" data-act="backup-restore">Restore from text</button></div>'+
  '<label class="btn ghost wide" style="margin-top:8px;text-align:center">Restore from file<input type="file" id="bk-file" hidden></label>'+
- '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p>'+bkHint()+'<p class="hint">App version 33</p>';
+ '<p class="err" id="err"></p><p class="hint">Your data is saved on this device, in this browser. Use a backup to move it to another device.</p>'+bkHint()+'<p class="hint">App version 34</p>';
 }
 function bkHint(){
  var lt=db.lang==='lt',i=bkInfo();
- return '<p class="hint">'+(lt?'Automatinė kopija (įdiegtoje programėlėje) saugoma kasdien į Documents/KcalLog, laikomos 14 dienų. ':'Automatic backup (installed app) is saved daily to Documents/KcalLog, the last 14 days are kept. ')+
+ return '<p class="hint">'+(lt?'Automatinė kopija (įdiegtoje programėlėje) saugoma kasdien į Download/KcalLog, laikomos 14 dienų. ':'Automatic backup (installed app) is saved daily to Download/KcalLog, the last 14 days are kept. ')+
   (i.err?(lt?'Paskutinis bandymas nepavyko: ':'Last try failed: ')+esc(i.err):i.at?(lt?'Paskutinė: ':'Last: ')+esc(i.at):'')+'</p>';
 }
 function sheetImport(){
@@ -1300,7 +1315,7 @@ var LT={
 'Name':'Pavadinimas','Calories':'Kalorijos','Save food':'Išsaugoti maistą','Delete food':'Ištrinti maistą','By gram':'Pagal gramus','By portion':'Pagal porcijas',
 'Amount eaten':'Suvalgytas kiekis','Portions eaten':'Suvalgytos porcijos','Choose another food':'Pasirinkti kitą maistą','Save changes':'Išsaugoti pakeitimus',
 'Remove entry':'Pašalinti įrašą','Add again':'Pridėti dar kartą','Copy to today':'Kopijuoti į šiandien','Add to recipe':'Pridėti į receptą',
-'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Monthly summary':'Mėnesio santrauka','Monthly deficit':'Mėnesio deficitas','Monthly surplus':'Mėnesio perteklius','Est. fat change':'Apytiksl. riebalų pokytis','Weeks':'Savaitės','Weight':'Svoris','Trend, 4 weeks ahead':'Tendencija, 4 sav. į priekį','Restore from file':'Atkurti iš failo','Adaptive maintenance: learn it from my food log and weight trend':'Prisitaikančios palaikomosios: skaičiuoti pagal maisto žurnalą ir svorio tendenciją','Goal':'Tikslas','Tap the graph to see a day':'Palieskite grafiką, kad pamatytumėte dieną','Y axis':'Y ašis','Auto':'Auto','Down to goal':'Iki tikslo','Custom':'Savas','Min':'Min','Max':'Maks','Auto-fill kcal, protein and portion':'Užpildyti kcal, baltymus ir porciją','Pick the closest match:':'Pasirinkite artimiausią:','Type the food name first.':'Pirmiausia įveskite pavadinimą.','Choose ingredients':'Pasirinkti ingredientus','Untick what you left out, or change amounts':'Nuimkite varnelę nuo to, ko nenaudojote, arba pakeiskite kiekius','Portions eaten':'Suvalgytos porcijos','Add to my day, choose ingredients':'Pridėti į dieną, pasirinkti ingredientus','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
+'Name, optional':'Pavadinimas, nebūtina','Scan barcode':'Skenuoti brūkšninį kodą','Look up':'Ieškoti','Scan again':'Skenuoti dar kartą','Notes':'Pastabos','Cooking steps, tips, seasoning, how long it keeps...':'Gaminimo žingsniai, patarimai, prieskoniai, kiek laiko laikosi...','Monthly summary':'Mėnesio santrauka','Monthly deficit':'Mėnesio deficitas','Monthly surplus':'Mėnesio perteklius','Est. fat change':'Apytiksl. riebalų pokytis','Weeks':'Savaitės','Weight':'Svoris','Trend, 4 weeks ahead':'Tendencija, 4 sav. į priekį','Forecast at your average speed':'Prognozė, jei mesite tokiu pat vidutiniu greičiu','Restore from file':'Atkurti iš failo','Adaptive maintenance: learn it from my food log and weight trend':'Prisitaikančios palaikomosios: skaičiuoti pagal maisto žurnalą ir svorio tendenciją','Goal':'Tikslas','Tap the graph to see a day':'Palieskite grafiką, kad pamatytumėte dieną','Y axis':'Y ašis','Auto':'Auto','Down to goal':'Iki tikslo','Custom':'Savas','Min':'Min','Max':'Maks','Auto-fill kcal, protein and portion':'Užpildyti kcal, baltymus ir porciją','Pick the closest match:':'Pasirinkite artimiausią:','Type the food name first.':'Pirmiausia įveskite pavadinimą.','Choose ingredients':'Pasirinkti ingredientus','Untick what you left out, or change amounts':'Nuimkite varnelę nuo to, ko nenaudojote, arba pakeiskite kiekius','Portions eaten':'Suvalgytos porcijos','Add to my day, choose ingredients':'Pridėti į dieną, pasirinkti ingredientus','Weekly deficit':'Savaitės deficitas','Progress to your goal':'Pažanga link tikslo','Goal weight':'Tikslinis svoris','Height (for BMI)':'Ūgis (BMI)','Target weight':'Tikslinis svoris','Lost so far':'Numesta','Left to lose':'Liko numesti','Per day (average)':'Per dieną (vid.)','Could be done in':'Pasieksite per','Could be done on':'Pasieksite','BMI now':'BMI dabar','BMI lost':'BMI sumažėjo','Total days':'Iš viso dienų','Total lost':'Iš viso numesta','Weekly surplus':'Savaitės perteklius','Per logged day':'Vienai dienai','Maintenance':'Palaikymas','Weekly summary':'Savaitės santrauka','Weight change':'Svorio pokytis','Latest weight':'Paskutinis svoris','Scale recipe to':'Keisti recepto porcijas į','Scale':'Keisti','Nothing logged':'Nieko neįrašyta','Sunday 19:00 reminder for the weekly summary':'Sekmadienio 19:00 priminimas apie savaitės santrauką','Previous week':'Ankstesnė savaitė','Next week':'Kita savaitė','Press back again to close the app':'Paspauskite atgal dar kartą, kad uždarytumėte programą','Point the camera at the barcode.':'Nukreipkite kamerą į brūkšninį kodą.',
 'Or type the barcode number':'Arba įveskite kodo numerį','New recipe':'Naujas receptas','Edit recipe':'Redaguoti receptą','Save recipe':'Išsaugoti receptą',
 'Delete recipe':'Ištrinti receptą','Makes':'Išeina','Portion weight':'Porcijos svoris','Add ingredient':'Pridėti ingredientą','Recipe':'Receptas',
 'Date':'Data','Save':'Išsaugoti','All weight entries':'Visi svorio įrašai','Latest':'Paskutinis','Change':'Pokytis','Average':'Vidurkis',
